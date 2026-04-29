@@ -1,14 +1,38 @@
-import { calculatePageAudit, compareAudits } from "./scoring.js";
+import { calculatePageAudit, compareAudits, summariseSiteAudit } from "./scoring.js";
 
 export async function auditMultipleUrls(urls) {
   const results = [];
 
   for (const url of urls) {
-    const result = await auditSingleUrl(url);
-    results.push(result);
+    results.push(await auditSingleUrl(url));
   }
 
   return results;
+}
+
+export async function auditSiteFromSitemap(siteUrl, options = {}) {
+  const maxUrls = options.maxUrls || 50;
+  const startedAt = new Date().toISOString();
+
+  const discoveredUrls = await discoverUrlsFromSitemap(siteUrl, maxUrls);
+
+  const results = [];
+
+  for (const url of discoveredUrls) {
+    results.push(await auditSingleUrl(url));
+  }
+
+  const summary = summariseSiteAudit(results);
+
+  return {
+    siteUrl: normaliseUrl(siteUrl),
+    startedAt,
+    completedAt: new Date().toISOString(),
+    maxUrls,
+    discoveredCount: discoveredUrls.length,
+    results,
+    summary
+  };
 }
 
 export async function auditWithCompetitors(primaryUrl, competitorUrls = []) {
@@ -39,9 +63,8 @@ export async function auditSingleUrl(url) {
       signal: controller.signal,
       headers: {
         "User-Agent":
-          "GamingNectarSiteQualityAuditor/2.0 (+https://gamingnectar.com)",
-        "Accept":
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+          "GamingNectarSiteQualityAuditor/3.0 (+https://gamingnectar.com)",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
       }
     });
 
@@ -70,9 +93,65 @@ export async function auditSingleUrl(url) {
     return failedAudit(
       url,
       Date.now() - startedAt,
-      error.name === "AbortError" ? "Request timed out after 15 seconds." : error.message
+      error.name === "AbortError"
+        ? "Request timed out after 15 seconds."
+        : error.message
     );
   }
+}
+
+async function discoverUrlsFromSitemap(siteUrl, maxUrls) {
+  const baseUrl = normaliseUrl(siteUrl);
+  const origin = new URL(baseUrl).origin;
+  const sitemapUrl = `${origin}/sitemap.xml`;
+
+  const visitedSitemaps = new Set();
+  const pageUrls = new Set();
+
+  async function crawlSitemap(url, depth = 0) {
+    if (visitedSitemaps.has(url)) return;
+    if (depth > 4) return;
+    if (pageUrls.size >= maxUrls) return;
+
+    visitedSitemaps.add(url);
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "GamingNectarSiteQualityAuditor/3.0 (+https://gamingnectar.com)",
+          Accept: "application/xml,text/xml,*/*"
+        }
+      });
+
+      if (!response.ok) return;
+
+      const xml = await response.text();
+      const locs = [...xml.matchAll(/<loc>(.*?)<\/loc>/gi)].map((m) =>
+        decodeXml(m[1].trim())
+      );
+
+      for (const loc of locs) {
+        if (pageUrls.size >= maxUrls) break;
+
+        if (loc.endsWith(".xml") || loc.includes("sitemap")) {
+          await crawlSitemap(loc, depth + 1);
+        } else if (loc.startsWith(origin)) {
+          pageUrls.add(loc);
+        }
+      }
+    } catch {
+      // Ignore failed sitemap branches for now.
+    }
+  }
+
+  await crawlSitemap(sitemapUrl);
+
+  if (pageUrls.size === 0) {
+    pageUrls.add(origin);
+  }
+
+  return [...pageUrls].slice(0, maxUrls);
 }
 
 function failedAudit(url, loadMs, message) {
@@ -85,37 +164,19 @@ function failedAudit(url, loadMs, message) {
     h1s: [],
     h2s: [],
     wordCount: 0,
-    scriptCount: 0,
-    styleCount: 0,
     schemaTypes: [],
-    imageStats: {
-      total: 0,
-      missingAlt: 0
-    },
-    links: {
-      total: 0,
-      internalCount: 0,
-      externalCount: 0
-    },
+    imageStats: { total: 0, missingAlt: 0 },
+    links: { total: 0, internalCount: 0, externalCount: 0 },
     overallScore: 0,
-    categoryScores: {
-      technical: 0,
-      seo: 0,
-      content: 0,
-      geo: 0,
-      accessibility: 0,
-      performance: 0,
-      conversion: 0,
-      trust: 0,
-      merchandising: 0
-    },
+    categoryScores: emptyCategoryScores(),
+    categoryDetails: emptyCategoryDetails(),
     issues: [
       {
         category: "technical",
         severity: "critical",
         message: message || "Unable to fetch this page.",
-        points: 10,
-        recommendation: "Check that the URL is correct, public, and not blocking server-side requests."
+        recommendation:
+          "Check that the URL is correct, public, and not blocking server-side requests."
       }
     ],
     wins: [],
@@ -127,6 +188,27 @@ function failedAudit(url, loadMs, message) {
   };
 }
 
+function emptyCategoryScores() {
+  return {
+    technical: 0,
+    seo: 0,
+    geo: 0,
+    linking: 0,
+    content: 0,
+    accessibility: 0,
+    performance: 0,
+    conversion: 0,
+    trust: 0,
+    merchandising: 0
+  };
+}
+
+function emptyCategoryDetails() {
+  return Object.fromEntries(
+    Object.keys(emptyCategoryScores()).map((key) => [key, []])
+  );
+}
+
 function normaliseUrl(url) {
   const trimmed = String(url || "").trim();
 
@@ -135,4 +217,13 @@ function normaliseUrl(url) {
   }
 
   return trimmed;
+}
+
+function decodeXml(value) {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
 }

@@ -3,7 +3,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import {
   auditMultipleUrls,
-  auditWithCompetitors
+  auditWithCompetitors,
+  auditSiteFromSitemap
 } from "./services/audit/crawler.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,8 +16,8 @@ const PORT = process.env.PORT || 3000;
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (req, res) => {
@@ -33,6 +34,29 @@ app.get("/audit", (req, res) => {
 app.post("/audit", async (req, res) => {
   try {
     const mode = req.body.mode || "standard";
+
+    if (mode === "site") {
+      const siteUrl = String(req.body.siteUrl || "").trim();
+      const maxUrls = Number(req.body.maxUrls || 50);
+
+      if (!siteUrl) {
+        return res.render("index", {
+          title: "Gaming Nectar Site Quality Auditor",
+          error: "Please enter a site URL before running a full-site crawl."
+        });
+      }
+
+      const siteAudit = await auditSiteFromSitemap(siteUrl, {
+        maxUrls: Math.min(Math.max(maxUrls, 5), 100)
+      });
+
+      return res.render("results", {
+        title: "Full Site Audit Results",
+        results: siteAudit.results,
+        siteAudit,
+        competitorAnalysis: null
+      });
+    }
 
     if (mode === "competitor") {
       const primaryUrl = String(req.body.primaryUrl || "").trim();
@@ -68,6 +92,7 @@ app.post("/audit", async (req, res) => {
           competitorAnalysis.primary,
           ...competitorAnalysis.competitors
         ],
+        siteAudit: null,
         competitorAnalysis
       });
     }
@@ -92,6 +117,7 @@ app.post("/audit", async (req, res) => {
     return res.render("results", {
       title: "Audit Results",
       results,
+      siteAudit: null,
       competitorAnalysis: null
     });
   } catch (error) {

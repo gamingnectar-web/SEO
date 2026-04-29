@@ -12,70 +12,146 @@
       <div class="topbar">
         <div>
           <p class="eyebrow">Gaming Nectar Intelligence</p>
-          <h1><%= competitorAnalysis ? "Competitor Analysis" : "Audit Results" %></h1>
+          <h1>
+            <%= siteAudit ? "Full Site Dashboard" : competitorAnalysis ? "Competitor Dashboard" : "Audit Dashboard" %>
+          </h1>
         </div>
 
         <a class="back-link" href="/">Run another audit</a>
       </div>
 
+      <% if (siteAudit) { %>
+        <section class="dashboard-summary">
+          <div class="summary-card hero-score">
+            <span>Average score</span>
+            <strong><%= siteAudit.summary.averageScore %>/10</strong>
+            <p><%= siteAudit.summary.totalPages %> pages audited</p>
+          </div>
+
+          <div class="summary-card">
+            <span>Total issues</span>
+            <strong><%= siteAudit.summary.totalIssues %></strong>
+            <p>Across all audited URLs</p>
+          </div>
+
+          <div class="summary-card">
+            <span>Discovered URLs</span>
+            <strong><%= siteAudit.discoveredCount %></strong>
+            <p>From sitemap crawl</p>
+          </div>
+        </section>
+      <% } %>
+
       <% if (competitorAnalysis) { %>
-        <section class="comparison-hero">
-          <div>
-            <p class="eyebrow">Your page</p>
-            <h2><%= competitorAnalysis.primaryScore %>/10</h2>
+        <section class="dashboard-summary">
+          <div class="summary-card hero-score">
+            <span>Your page</span>
+            <strong><%= competitorAnalysis.primaryScore %>/10</strong>
             <p><%= competitorAnalysis.primaryUrl %></p>
           </div>
 
-          <div>
-            <p class="eyebrow">Competitors analysed</p>
-            <h2><%= competitorAnalysis.competitors.length %></h2>
-            <p>Showing where competitors are stronger and where you outperform them.</p>
+          <div class="summary-card">
+            <span>Competitors</span>
+            <strong><%= competitorAnalysis.competitors.length %></strong>
+            <p>Compared head-to-head</p>
           </div>
         </section>
+      <% } %>
 
-        <% if (competitorAnalysis.opportunities.length) { %>
-          <section class="opportunity-panel">
-            <div class="section-heading">
-              <p class="eyebrow">Priority gaps</p>
-              <h2>Where competitors are stronger</h2>
+      <nav class="tabs" data-tabs>
+        <button class="active" data-tab-button="overview">Overview</button>
+        <button data-tab-button="geo">GEO</button>
+        <button data-tab-button="seo">SEO</button>
+        <button data-tab-button="technical">Technical</button>
+        <button data-tab-button="linking">Linking</button>
+        <button data-tab-button="content">Content</button>
+        <button data-tab-button="commercial">Commercial</button>
+        <button data-tab-button="pages">Pages</button>
+        <% if (competitorAnalysis) { %>
+          <button data-tab-button="competitors">Competitors</button>
+        <% } %>
+      </nav>
+
+      <section class="tab-panel active" data-tab-panel="overview">
+        <div class="section-heading">
+          <p class="eyebrow">Dashboard</p>
+          <h2>Overall performance</h2>
+        </div>
+
+        <div class="category-grid">
+          <% const overviewScores = siteAudit ? siteAudit.summary.categoryAverages : averageCategories(results); %>
+          <% Object.entries(overviewScores).forEach(function(entry) { %>
+            <div class="category-item">
+              <div>
+                <span><%= formatCategory(entry[0]) %></span>
+                <div class="score-bar">
+                  <i style="width: <%= entry[1] * 10 %>%"></i>
+                </div>
+              </div>
+              <strong><%= entry[1] %>/10</strong>
             </div>
+          <% }) %>
+        </div>
 
-            <div class="opportunity-list">
-              <% competitorAnalysis.opportunities.forEach(function(item) { %>
-                <article>
-                  <span><%= formatCategory(item.category) %></span>
-                  <p><%= item.message %></p>
-                  <small><%= item.competitorUrl %></small>
+        <% if (siteAudit) { %>
+          <div class="split-grid">
+            <section class="panel">
+              <h3>Weakest pages</h3>
+              <% siteAudit.summary.weakestPages.forEach(function(page) { %>
+                <article class="compact-page-row">
+                  <strong><%= page.overallScore %>/10</strong>
+                  <div>
+                    <p><%= page.title || "Untitled page" %></p>
+                    <small><%= page.url %></small>
+                  </div>
                 </article>
               <% }) %>
-            </div>
-          </section>
-        <% } %>
+            </section>
 
-        <section class="comparison-table-wrap">
+            <section class="panel">
+              <h3>Priority issues</h3>
+              <% siteAudit.summary.priorityIssues.forEach(function(issue) { %>
+                <article class="compact-issue-row">
+                  <span><%= formatCategory(issue.category) %></span>
+                  <p><%= issue.message %></p>
+                  <small><%= issue.url %></small>
+                </article>
+              <% }) %>
+            </section>
+          </div>
+        <% } %>
+      </section>
+
+      <% ["geo", "seo", "technical", "linking", "content"].forEach(function(category) { %>
+        <section class="tab-panel" data-tab-panel="<%= category %>">
           <div class="section-heading">
-            <p class="eyebrow">Head-to-head</p>
-            <h2>Competitor score differences</h2>
+            <p class="eyebrow">Deep dive</p>
+            <h2><%= formatCategory(category) %> analysis</h2>
           </div>
 
-          <div class="comparison-table">
-            <% competitorAnalysis.competitors.forEach(function(item) { %>
-              <article class="comparison-row">
-                <div>
-                  <p class="url"><%= item.url %></p>
-                  <h3><%= item.title || "Untitled competitor page" %></h3>
-                  <strong class="<%= item.overallDifference > 0 ? "negative" : "positive" %>">
-                    <%= item.overallDifference > 0 ? "+" : "" %><%= item.overallDifference %> vs your page
-                  </strong>
+          <div class="deep-list">
+            <% results.forEach(function(result) { %>
+              <article class="deep-card">
+                <div class="deep-card-head">
+                  <div>
+                    <p class="url"><%= result.url %></p>
+                    <h3><%= result.title || "Untitled page" %></h3>
+                  </div>
+                  <strong><%= result.categoryScores[category] %>/10</strong>
                 </div>
 
-                <div class="mini-category-grid">
-                  <% Object.entries(item.categoryDiffs).forEach(function(entry) { %>
-                    <div>
-                      <span><%= formatCategory(entry[0]) %></span>
-                      <strong class="<%= entry[1] > 0 ? "negative" : entry[1] < 0 ? "positive" : "" %>">
-                        <%= entry[1] > 0 ? "+" : "" %><%= entry[1] %>
-                      </strong>
+                <div class="checks-list">
+                  <% (result.categoryDetails[category] || []).forEach(function(check) { %>
+                    <div class="check-row check-<%= check.status %>">
+                      <div>
+                        <strong><%= check.name %></strong>
+                        <p><%= check.message %></p>
+                        <% if (check.evidence) { %>
+                          <small>Evidence: <%= check.evidence %></small>
+                        <% } %>
+                      </div>
+
+                      <span><%= check.status %></span>
                     </div>
                   <% }) %>
                 </div>
@@ -83,131 +159,133 @@
             <% }) %>
           </div>
         </section>
-      <% } %>
+      <% }) %>
 
-      <section class="results-list">
-        <% results.forEach(function(result, resultIndex) { %>
-          <article class="result-card">
-            <div class="result-header">
-              <div>
-                <p class="eyebrow"><%= competitorAnalysis && resultIndex === 0 ? "Your page" : competitorAnalysis ? "Competitor page" : "Audited page" %></p>
-                <p class="url"><%= result.url %></p>
-                <h2><%= result.title || "Untitled page" %></h2>
+      <section class="tab-panel" data-tab-panel="commercial">
+        <div class="section-heading">
+          <p class="eyebrow">Revenue quality</p>
+          <h2>Conversion, trust and merchandising</h2>
+        </div>
 
-                <% if (result.metaDescription) { %>
-                  <p class="meta-description"><%= result.metaDescription %></p>
-                <% } %>
-              </div>
+        <% ["conversion", "trust", "merchandising"].forEach(function(category) { %>
+          <section class="panel spaced-panel">
+            <h3><%= formatCategory(category) %></h3>
 
-              <div class="score-box <%= scoreClass(result.overallScore) %>">
-                <span class="score"><%= result.overallScore %></span>
-                <span class="score-total">/10</span>
-                <span class="score-label"><%= scoreLabel(result.overallScore) %></span>
-              </div>
-            </div>
-
-            <div class="insight-strip">
-              <% result.insights.forEach(function(insight) { %>
-                <div>
-                  <span><%= insight.label %></span>
-                  <strong><%= insight.value %></strong>
-                  <small><%= insight.note %></small>
-                </div>
-              <% }) %>
-            </div>
-
-            <div class="section-heading compact">
-              <p class="eyebrow">Score breakdown</p>
-              <h3>Category scores</h3>
-            </div>
-
-            <div class="category-grid">
-              <% Object.entries(result.categoryScores).forEach(function(entry) { %>
-                <div class="category-item">
-                  <div>
-                    <span><%= formatCategory(entry[0]) %></span>
-                    <div class="score-bar">
-                      <i style="width: <%= entry[1] * 10 %>%"></i>
+            <div class="deep-list">
+              <% results.forEach(function(result) { %>
+                <article class="deep-card">
+                  <div class="deep-card-head">
+                    <div>
+                      <p class="url"><%= result.url %></p>
+                      <h3><%= result.title || "Untitled page" %></h3>
                     </div>
+                    <strong><%= result.categoryScores[category] %>/10</strong>
                   </div>
-                  <strong><%= entry[1] %>/10</strong>
-                </div>
+
+                  <div class="checks-list">
+                    <% (result.categoryDetails[category] || []).forEach(function(check) { %>
+                      <div class="check-row check-<%= check.status %>">
+                        <div>
+                          <strong><%= check.name %></strong>
+                          <p><%= check.message %></p>
+                        </div>
+                        <span><%= check.status %></span>
+                      </div>
+                    <% }) %>
+                  </div>
+                </article>
               <% }) %>
             </div>
-
-            <% if (result.wins.length) { %>
-              <details class="details" open>
-                <summary>What looks good</summary>
-
-                <ul class="good-list">
-                  <% result.wins.forEach(function(win) { %>
-                    <li>
-                      <span><%= formatCategory(win.category) %></span>
-                      <p><%= win.message %></p>
-                    </li>
-                  <% }) %>
-                </ul>
-              </details>
-            <% } %>
-
-            <details class="details" open>
-              <summary>What needs improving</summary>
-
-              <% if (result.issues.length) { %>
-                <ul class="issue-list">
-                  <% result.issues.forEach(function(issue) { %>
-                    <li class="severity-<%= issue.severity %>">
-                      <div>
-                        <span class="issue-category"><%= formatCategory(issue.category) %></span>
-                        <strong><%= issue.severity %></strong>
-                      </div>
-
-                      <p class="issue-message"><%= issue.message %></p>
-
-                      <% if (issue.recommendation) { %>
-                        <p class="issue-recommendation"><%= issue.recommendation %></p>
-                      <% } %>
-                    </li>
-                  <% }) %>
-                </ul>
-              <% } else { %>
-                <p>No major issues detected.</p>
-              <% } %>
-            </details>
-
-            <% if (result.h1s.length || result.h2s.length) { %>
-              <details class="details">
-                <summary>Heading structure</summary>
-
-                <div class="heading-preview">
-                  <div>
-                    <h4>H1s</h4>
-                    <% if (result.h1s.length) { %>
-                      <% result.h1s.forEach(function(h) { %>
-                        <p><%= h %></p>
-                      <% }) %>
-                    <% } else { %>
-                      <p>No H1s found.</p>
-                    <% } %>
-                  </div>
-
-                  <div>
-                    <h4>H2s</h4>
-                    <% if (result.h2s.length) { %>
-                      <% result.h2s.forEach(function(h) { %>
-                        <p><%= h %></p>
-                      <% }) %>
-                    <% } else { %>
-                      <p>No H2s found.</p>
-                    <% } %>
-                  </div>
-                </div>
-              </details>
-            <% } %>
-          </article>
+          </section>
         <% }) %>
       </section>
+
+      <section class="tab-panel" data-tab-panel="pages">
+        <div class="section-heading">
+          <p class="eyebrow">Page-level evidence</p>
+          <h2>All audited pages</h2>
+        </div>
+
+        <section class="results-list">
+          <% results.forEach(function(result, resultIndex) { %>
+            <article class="result-card">
+              <div class="result-header">
+                <div>
+                  <p class="url"><%= result.url %></p>
+                  <h2><%= result.title || "Untitled page" %></h2>
+
+                  <% if (result.metaDescription) { %>
+                    <p class="meta-description"><%= result.metaDescription %></p>
+                  <% } %>
+                </div>
+
+                <div class="score-box <%= scoreClass(result.overallScore) %>">
+                  <span class="score"><%= result.overallScore %></span>
+                  <span class="score-total">/10</span>
+                  <span class="score-label"><%= scoreLabel(result.overallScore) %></span>
+                </div>
+              </div>
+
+              <div class="insight-strip">
+                <% result.insights.forEach(function(insight) { %>
+                  <div>
+                    <span><%= insight.label %></span>
+                    <strong><%= insight.value %></strong>
+                    <small><%= insight.note %></small>
+                  </div>
+                <% }) %>
+              </div>
+
+              <details class="details">
+                <summary>Issues and recommendations</summary>
+
+                <% if (result.issues.length) { %>
+                  <ul class="issue-list">
+                    <% result.issues.forEach(function(issue) { %>
+                      <li class="severity-<%= issue.severity %>">
+                        <div>
+                          <span class="issue-category"><%= formatCategory(issue.category) %></span>
+                          <strong><%= issue.severity %></strong>
+                        </div>
+
+                        <p class="issue-message"><%= issue.message %></p>
+
+                        <% if (issue.recommendation) { %>
+                          <p class="issue-recommendation"><%= issue.recommendation %></p>
+                        <% } %>
+                      </li>
+                    <% }) %>
+                  </ul>
+                <% } else { %>
+                  <p>No major issues detected.</p>
+                <% } %>
+              </details>
+            </article>
+          <% }) %>
+        </section>
+      </section>
+
+      <% if (competitorAnalysis) { %>
+        <section class="tab-panel" data-tab-panel="competitors">
+          <div class="section-heading">
+            <p class="eyebrow">Competitor gaps</p>
+            <h2>Where competitors are stronger</h2>
+          </div>
+
+          <div class="opportunity-list">
+            <% competitorAnalysis.comparison.opportunities.forEach(function(item) { %>
+              <article>
+                <span><%= formatCategory(item.category) %></span>
+                <p><%= item.message %></p>
+                <small><%= item.competitorUrl %></small>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
     </main>
+
+    <script src="/app.js"></script>
   </body>
 </html>
 
@@ -231,5 +309,25 @@ function scoreClass(score) {
   if (score >= 8) return "score-strong";
   if (score >= 6) return "score-mid";
   return "score-low";
+}
+
+function averageCategories(results) {
+  const totals = {};
+  const counts = {};
+
+  results.forEach(function(result) {
+    Object.entries(result.categoryScores).forEach(function(entry) {
+      totals[entry[0]] = (totals[entry[0]] || 0) + entry[1];
+      counts[entry[0]] = (counts[entry[0]] || 0) + 1;
+    });
+  });
+
+  const averages = {};
+
+  Object.keys(totals).forEach(function(key) {
+    averages[key] = Math.round((totals[key] / counts[key]) * 10) / 10;
+  });
+
+  return averages;
 }
 %>

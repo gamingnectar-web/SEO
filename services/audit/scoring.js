@@ -1,3 +1,16 @@
+const CATEGORIES = [
+  "technical",
+  "seo",
+  "geo",
+  "linking",
+  "content",
+  "accessibility",
+  "performance",
+  "conversion",
+  "trust",
+  "merchandising"
+];
+
 export function calculatePageAudit({ url, html, status, loadMs }) {
   const safeHtml = html || "";
   const text = extractVisibleText(safeHtml);
@@ -6,39 +19,66 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
   const metaDescription = extractMetaDescription(safeHtml);
   const h1s = extractHeadings(safeHtml, "h1");
   const h2s = extractHeadings(safeHtml, "h2");
+  const h3s = extractHeadings(safeHtml, "h3");
   const imageStats = analyseImages(safeHtml);
   const links = analyseLinks(safeHtml, url);
   const schema = analyseSchema(safeHtml);
   const wordCount = countWords(text);
   const scriptCount = countMatches(safeHtml, /<script\b/gi);
-  const styleCount = countMatches(safeHtml, /<style\b|rel=["']stylesheet["']/gi);
+  const styleCount = countMatches(
+    safeHtml,
+    /<style\b|rel=["']stylesheet["']/gi
+  );
 
-  const categoryScores = {
-    technical: 10,
-    seo: 10,
-    content: 10,
-    geo: 10,
-    accessibility: 10,
-    performance: 10,
-    conversion: 10,
-    trust: 10,
-    merchandising: 10
-  };
+  const categoryScores = createCategoryScores();
+  const categoryDetails = createCategoryDetails();
 
   const issues = [];
   const wins = [];
   const recommendations = [];
-  const insights = [];
 
-  function deduct(category, points, message, severity = "medium", recommendation = "") {
-    categoryScores[category] = Math.max(0, round1(categoryScores[category] - points));
+  function check(category, config) {
+    const {
+      name,
+      passed,
+      severity = "medium",
+      points = 0.5,
+      passMessage,
+      failMessage,
+      recommendation = "",
+      evidence = ""
+    } = config;
+
+    const statusLabel = passed ? "pass" : "fail";
+
+    categoryDetails[category].push({
+      name,
+      status: statusLabel,
+      severity,
+      message: passed ? passMessage : failMessage,
+      recommendation,
+      evidence
+    });
+
+    if (passed) {
+      wins.push({
+        category,
+        message: passMessage || `${name} looks good.`
+      });
+      return;
+    }
+
+    categoryScores[category] = Math.max(
+      0,
+      round1(categoryScores[category] - points)
+    );
 
     issues.push({
       category,
       severity,
-      message,
-      points,
-      recommendation
+      message: failMessage,
+      recommendation,
+      evidence
     });
 
     if (recommendation) {
@@ -46,484 +86,388 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
     }
   }
 
-  function win(category, message) {
-    wins.push({ category, message });
-  }
-
   /**
-   * Technical
+   * TECHNICAL
    */
-  if (!status || status >= 400) {
-    deduct(
-      "technical",
-      5,
-      `Page returned HTTP status ${status || "unknown"}.`,
-      "critical",
-      "Fix server errors, broken URLs, or redirects before making content improvements."
-    );
-  } else if (status >= 300) {
-    deduct(
-      "technical",
-      1,
-      `Page returned redirect status ${status}.`,
-      "medium",
-      "Check whether this URL should be the final canonical destination."
-    );
-  } else {
-    win("technical", "Page returned a successful HTTP status.");
-  }
+  check("technical", {
+    name: "HTTP status",
+    passed: status >= 200 && status < 300,
+    severity: status >= 400 ? "critical" : "medium",
+    points: status >= 400 ? 4 : 1,
+    passMessage: "Page returns a successful HTTP status.",
+    failMessage: `Page returned HTTP status ${status || "unknown"}.`,
+    recommendation:
+      "Fix server errors, broken URLs, redirect chains, or blocked resources first.",
+    evidence: String(status || "unknown")
+  });
 
-  if (!safeHtml.includes("</html>")) {
-    deduct(
-      "technical",
-      1,
-      "HTML appears incomplete.",
-      "medium",
-      "Check whether the page is being interrupted, blocked, or partially rendered."
-    );
-  } else {
-    win("technical", "HTML document appears complete.");
-  }
+  check("technical", {
+    name: "Complete HTML",
+    passed: safeHtml.includes("</html>"),
+    severity: "medium",
+    points: 1,
+    passMessage: "HTML document appears complete.",
+    failMessage: "HTML appears incomplete or partially rendered.",
+    recommendation:
+      "Check whether the page is interrupted, blocked, or failing during render."
+  });
 
-  if (!/<meta[^>]+name=["']viewport["']/i.test(safeHtml)) {
-    deduct(
-      "technical",
-      1,
-      "Missing viewport meta tag.",
-      "high",
-      "Add a viewport meta tag so the page is mobile-friendly."
-    );
-  }
+  check("technical", {
+    name: "Mobile viewport",
+    passed: /<meta[^>]+name=["']viewport["']/i.test(safeHtml),
+    severity: "high",
+    points: 1,
+    passMessage: "Viewport meta tag found.",
+    failMessage: "Missing viewport meta tag.",
+    recommendation:
+      "Add a viewport meta tag so the page is mobile-friendly and responsive."
+  });
+
+  check("technical", {
+    name: "Canonical",
+    passed: /<link[^>]+rel=["']canonical["']/i.test(safeHtml),
+    severity: "medium",
+    points: 0.8,
+    passMessage: "Canonical tag found.",
+    failMessage: "Missing canonical tag.",
+    recommendation:
+      "Add a canonical tag to clarify the preferred URL for search engines."
+  });
+
+  check("technical", {
+    name: "Indexability hints",
+    passed: !/<meta[^>]+name=["']robots["'][^>]+content=["'][^"']*noindex/i.test(
+      safeHtml
+    ),
+    severity: "critical",
+    points: 2,
+    passMessage: "No obvious noindex directive detected.",
+    failMessage: "Potential noindex directive detected.",
+    recommendation:
+      "Confirm whether this page should be excluded from search. Remove noindex if it should rank."
+  });
 
   /**
    * SEO
    */
-  if (!title) {
-    deduct(
-      "seo",
-      1.8,
-      "Missing title tag.",
-      "critical",
-      "Add a descriptive title tag with the main query/topic near the front."
-    );
-  } else {
-    if (title.length < 25) {
-      deduct(
-        "seo",
-        0.8,
-        `Title is short at ${title.length} characters.`,
-        "medium",
-        "Expand the title to make the page purpose clearer."
-      );
-    } else if (title.length > 65) {
-      deduct(
-        "seo",
-        0.8,
-        `Title is long at ${title.length} characters.`,
-        "medium",
-        "Shorten the title so important text is less likely to be truncated."
-      );
-    } else {
-      win("seo", "Title length is within a sensible range.");
-    }
-  }
+  check("seo", {
+    name: "Title exists",
+    passed: Boolean(title),
+    severity: "critical",
+    points: 1.5,
+    passMessage: "Title tag exists.",
+    failMessage: "Missing title tag.",
+    recommendation:
+      "Add a descriptive title tag with the main keyword/topic near the start."
+  });
 
-  if (!metaDescription) {
-    deduct(
-      "seo",
-      1.3,
-      "Missing meta description.",
-      "high",
-      "Add a persuasive meta description that explains the benefit of the page."
-    );
-  } else {
-    if (metaDescription.length < 90) {
-      deduct(
-        "seo",
-        0.6,
-        `Meta description is short at ${metaDescription.length} characters.`,
-        "medium",
-        "Add more context and a reason to click."
-      );
-    } else if (metaDescription.length > 170) {
-      deduct(
-        "seo",
-        0.6,
-        `Meta description is long at ${metaDescription.length} characters.`,
-        "medium",
-        "Condense the meta description so it is easier to scan."
-      );
-    } else {
-      win("seo", "Meta description length looks healthy.");
-    }
-  }
+  check("seo", {
+    name: "Title length",
+    passed: title.length >= 25 && title.length <= 65,
+    severity: "medium",
+    points: 0.7,
+    passMessage: `Title length looks sensible at ${title.length} characters.`,
+    failMessage: `Title length is ${title.length} characters, outside the preferred range.`,
+    recommendation:
+      "Aim for a useful, readable title around 25–65 characters.",
+    evidence: title
+  });
 
-  if (h1s.length === 0) {
-    deduct(
-      "seo",
-      1.2,
-      "Missing H1 heading.",
-      "high",
-      "Add one clear H1 that describes the page topic."
-    );
-  } else if (h1s.length > 1) {
-    deduct(
-      "seo",
-      0.7,
-      `Multiple H1s found: ${h1s.length}.`,
-      "medium",
-      "Use one primary H1 and move secondary headings to H2/H3."
-    );
-  } else {
-    win("seo", "Exactly one H1 found.");
-  }
+  check("seo", {
+    name: "Meta description exists",
+    passed: Boolean(metaDescription),
+    severity: "high",
+    points: 1.2,
+    passMessage: "Meta description exists.",
+    failMessage: "Missing meta description.",
+    recommendation:
+      "Add a persuasive meta description that explains the page benefit and encourages clicks."
+  });
 
-  if (!/<link[^>]+rel=["']canonical["']/i.test(safeHtml)) {
-    deduct(
-      "seo",
-      0.8,
-      "Missing canonical tag.",
-      "medium",
-      "Add a canonical tag to clarify the preferred URL."
-    );
-  } else {
-    win("seo", "Canonical tag found.");
-  }
+  check("seo", {
+    name: "Meta description length",
+    passed: metaDescription.length >= 90 && metaDescription.length <= 170,
+    severity: "medium",
+    points: 0.6,
+    passMessage: `Meta description length looks healthy at ${metaDescription.length} characters.`,
+    failMessage: `Meta description length is ${metaDescription.length} characters.`,
+    recommendation:
+      "Aim for roughly 90–170 characters and include a clear reason to visit.",
+    evidence: metaDescription
+  });
 
-  if (links.internalCount < 3) {
-    deduct(
-      "seo",
-      0.8,
-      `Only ${links.internalCount} internal links detected.`,
-      "medium",
-      "Add relevant internal links to collections, products, guides, FAQs, or supporting pages."
-    );
-  }
+  check("seo", {
+    name: "Single H1",
+    passed: h1s.length === 1,
+    severity: h1s.length === 0 ? "high" : "medium",
+    points: h1s.length === 0 ? 1.1 : 0.6,
+    passMessage: "Exactly one H1 found.",
+    failMessage:
+      h1s.length === 0
+        ? "Missing H1."
+        : `Multiple H1s found: ${h1s.length}.`,
+    recommendation:
+      "Use one clear H1 that describes the main page topic."
+  });
 
   /**
-   * Content
+   * CONTENT
    */
-  if (wordCount < 250) {
-    deduct(
-      "content",
-      2,
-      `Page has low visible text volume: approximately ${wordCount} words.`,
-      "high",
-      "Add useful copy that explains the product, category, benefits, use cases, objections, and FAQs."
-    );
-  } else if (wordCount < 600) {
-    deduct(
-      "content",
-      0.8,
-      `Page has moderate visible text volume: approximately ${wordCount} words.`,
-      "medium",
-      "Consider adding deeper supporting content if this page is important for search."
-    );
-  } else {
-    win("content", `Healthy visible content depth detected: approximately ${wordCount} words.`);
-  }
+  check("content", {
+    name: "Content depth",
+    passed: wordCount >= 500,
+    severity: wordCount < 250 ? "high" : "medium",
+    points: wordCount < 250 ? 2 : 0.8,
+    passMessage: `Healthy visible content depth: approximately ${wordCount} words.`,
+    failMessage: `Visible content is thin: approximately ${wordCount} words.`,
+    recommendation:
+      "Add useful copy covering benefits, ingredients, use cases, objections, FAQs, comparisons and trust signals.",
+    evidence: `${wordCount} words`
+  });
 
-  if (h2s.length < 2) {
-    deduct(
-      "content",
-      0.8,
-      `Only ${h2s.length} H2 heading(s) found.`,
-      "medium",
-      "Use H2 sections to organise benefits, ingredients, FAQs, reviews, shipping, comparisons, and use cases."
-    );
-  } else {
-    win("content", "Page has multiple H2 sections.");
-  }
+  check("content", {
+    name: "Section structure",
+    passed: h2s.length >= 3,
+    severity: "medium",
+    points: 0.8,
+    passMessage: `Page has ${h2s.length} H2 sections.`,
+    failMessage: `Page only has ${h2s.length} H2 sections.`,
+    recommendation:
+      "Use H2s to create scannable sections for benefits, FAQs, reviews, delivery, ingredients, comparisons and usage."
+  });
 
   const contentSignals = {
-    benefits: /benefit|helps|supports|improves|boost|energy|focus|hydration/i.test(text),
-    ingredients: /ingredient|nutrition|vitamin|mineral|caffeine|sugar|calorie/i.test(text),
-    usage: /how to use|when to use|serving|daily|morning|workout|gaming|study/i.test(text),
-    objections: /shipping|returns|refund|guarantee|safe|secure|delivery/i.test(text),
-    reviews: /review|rated|stars|testimonial|customer/i.test(text)
+    benefits: /benefit|helps|supports|improves|boost|energy|focus|hydration/i,
+    ingredients: /ingredient|nutrition|vitamin|mineral|caffeine|sugar|calorie/i,
+    usage: /how to use|when to use|serving|daily|morning|workout|gaming|study/i,
+    objections: /shipping|returns|refund|guarantee|safe|secure|delivery/i,
+    socialProof: /review|rated|stars|testimonial|customer/i
   };
 
-  Object.entries(contentSignals).forEach(([name, present]) => {
-    if (!present) {
-      deduct(
-        "content",
-        0.3,
-        `Missing or weak ${name} content signal.`,
-        "low",
-        `Add clearer ${name} information where relevant.`
-      );
-    }
+  Object.entries(contentSignals).forEach(([name, regex]) => {
+    check("content", {
+      name: `Content signal: ${name}`,
+      passed: regex.test(text),
+      severity: "low",
+      points: 0.35,
+      passMessage: `${formatCategory(name)} content signal found.`,
+      failMessage: `Weak or missing ${formatCategory(name)} content signal.`,
+      recommendation: `Add clearer ${formatCategory(name)} content where relevant.`
+    });
   });
 
   /**
-   * GEO
+   * GEO — GENERATIVE ENGINE OPTIMISATION
    */
-  if (!schema.hasJsonLd) {
-    deduct(
-      "geo",
-      1.7,
-      "No JSON-LD structured data detected.",
-      "high",
-      "Add schema such as Product, Organization, FAQPage, BreadcrumbList, Article, or CollectionPage."
-    );
-  } else {
-    win("geo", "JSON-LD structured data detected.");
-  }
+  check("geo", {
+    name: "JSON-LD structured data",
+    passed: schema.hasJsonLd,
+    severity: "high",
+    points: 1.4,
+    passMessage: `JSON-LD detected: ${
+      schema.types.length ? schema.types.join(", ") : "type not identified"
+    }.`,
+    failMessage: "No JSON-LD structured data detected.",
+    recommendation:
+      "Add structured data such as Product, Organization, FAQPage, BreadcrumbList, Article, CollectionPage or Review where relevant."
+  });
 
-  if (!schema.types.length) {
-    deduct(
-      "geo",
-      0.8,
-      "Structured data types could not be identified.",
-      "medium",
-      "Make schema types explicit and valid."
-    );
-  }
+  check("geo", {
+    name: "Schema type clarity",
+    passed: schema.types.length > 0,
+    severity: "medium",
+    points: 0.7,
+    passMessage: `Schema types identified: ${schema.types.join(", ")}.`,
+    failMessage: "Structured data type could not be identified.",
+    recommendation:
+      "Ensure JSON-LD uses explicit @type values and validates cleanly."
+  });
 
-  const geoSignals = {
-    answers: /what is|how does|how to|why|which|best|can you|does it/i.test(text),
-    faq: /faq|frequently asked|question|answer/i.test(text),
-    comparison: /compare|versus|vs\.|alternative|better than|difference/i.test(text),
-    entityClarity: /gaming nectar|brand|product|energy drink|healthy energy|clean energy/i.test(text),
-    evidence: /review|rated|study|tested|certified|customer|ingredient/i.test(text)
-  };
+  const geoChecks = [
+    {
+      name: "Answer-style copy",
+      regex: /what is|how does|how to|why|which|best|can you|does it|is it/i,
+      recommendation:
+        "Add direct answer blocks that explain the product, use case, benefits and objections in plain language."
+    },
+    {
+      name: "FAQ coverage",
+      regex: /faq|frequently asked|question|answer/i,
+      recommendation:
+        "Add natural-language FAQs with concise answers and FAQPage schema where suitable."
+    },
+    {
+      name: "Entity clarity",
+      regex:
+        /gaming nectar|brand|product|energy drink|healthy energy|clean energy|caffeine|vitamin/i,
+      recommendation:
+        "Clearly state who the brand is, what the product is, what category it belongs to, and who it is for."
+    },
+    {
+      name: "Comparison context",
+      regex: /compare|versus|vs\.|alternative|better than|difference|instead of/i,
+      recommendation:
+        "Add comparison sections against common alternatives, use cases, or competitor-style choices."
+    },
+    {
+      name: "Evidence and proof",
+      regex: /review|rated|tested|certified|customer|ingredient|nutrition|study/i,
+      recommendation:
+        "Add proof points such as reviews, ingredient evidence, nutritional facts, testing or customer outcomes."
+    },
+    {
+      name: "Topical coverage",
+      regex: /energy|focus|gaming|study|workout|hydration|vitamin|mineral|sugar|calorie/i,
+      recommendation:
+        "Expand supporting topical language so AI systems understand the page context."
+    },
+    {
+      name: "Source-of-truth clarity",
+      regex: /about|contact|shipping|returns|ingredients|nutrition|reviews|guarantee/i,
+      recommendation:
+        "Make key factual information easy to find and consistently stated across the site."
+    }
+  ];
 
-  if (!geoSignals.answers) {
-    deduct(
-      "geo",
-      1,
-      "Weak answer-style content.",
-      "medium",
-      "Add concise answer blocks that directly answer customer questions."
-    );
-  }
-
-  if (!geoSignals.faq) {
-    deduct(
-      "geo",
-      0.8,
-      "No obvious FAQ content detected.",
-      "medium",
-      "Add FAQs using natural questions and concise answers."
-    );
-  }
-
-  if (!geoSignals.comparison) {
-    deduct(
-      "geo",
-      0.5,
-      "No comparison-style content detected.",
-      "low",
-      "Add comparisons against alternatives, use cases, or common customer choices."
-    );
-  }
-
-  if (!geoSignals.entityClarity) {
-    deduct(
-      "geo",
-      1,
-      "Brand/product entity clarity appears weak.",
-      "medium",
-      "Clearly state who Gaming Nectar is, what the product is, who it is for, and why it is different."
-    );
-  }
+  geoChecks.forEach((item) => {
+    check("geo", {
+      name: item.name,
+      passed: item.regex.test(text),
+      severity: "medium",
+      points: 0.55,
+      passMessage: `${item.name} signal found.`,
+      failMessage: `${item.name} signal appears weak or missing.`,
+      recommendation: item.recommendation
+    });
+  });
 
   /**
-   * Accessibility
+   * LINKING
    */
-  if (imageStats.total > 0 && imageStats.missingAlt > 0) {
-    deduct(
-      "accessibility",
-      Math.min(2.5, imageStats.missingAlt * 0.25),
-      `${imageStats.missingAlt} of ${imageStats.total} images appear to be missing alt text.`,
-      "medium",
-      "Add descriptive alt text to meaningful images and empty alt text to decorative images."
-    );
-  } else if (imageStats.total > 0) {
-    win("accessibility", "Images appear to include alt attributes.");
-  }
+  check("linking", {
+    name: "Internal links",
+    passed: links.internalCount >= 5,
+    severity: "medium",
+    points: 1,
+    passMessage: `${links.internalCount} internal links detected.`,
+    failMessage: `Only ${links.internalCount} internal links detected.`,
+    recommendation:
+      "Add internal links to relevant products, collections, guides, FAQs and supporting pages."
+  });
 
-  if (!/<button|role=["']button["']|type=["']submit["']/i.test(safeHtml)) {
-    deduct(
-      "accessibility",
-      0.6,
-      "No accessible button elements detected.",
-      "low",
+  check("linking", {
+    name: "External links",
+    passed: links.externalCount > 0,
+    severity: "low",
+    points: 0.35,
+    passMessage: `${links.externalCount} external links detected.`,
+    failMessage: "No external links detected.",
+    recommendation:
+      "Where useful, cite trusted external references, review platforms, certifications or social proof."
+  });
+
+  check("linking", {
+    name: "Link volume balance",
+    passed: links.total <= 180,
+    severity: "low",
+    points: 0.4,
+    passMessage: "Link volume appears reasonable.",
+    failMessage: `High link count detected: ${links.total}.`,
+    recommendation:
+      "Review whether navigation, filters or repeated links are bloating the page."
+  });
+
+  /**
+   * ACCESSIBILITY
+   */
+  check("accessibility", {
+    name: "Image alt text",
+    passed: imageStats.total === 0 || imageStats.missingAlt === 0,
+    severity: "medium",
+    points: Math.min(2.5, imageStats.missingAlt * 0.25),
+    passMessage: "Images appear to include alt attributes.",
+    failMessage: `${imageStats.missingAlt} of ${imageStats.total} images appear to be missing alt text.`,
+    recommendation:
+      "Add descriptive alt text to meaningful images and empty alt attributes to decorative images."
+  });
+
+  check("accessibility", {
+    name: "Accessible actions",
+    passed: /<button|role=["']button["']|type=["']submit["']/i.test(safeHtml),
+    severity: "low",
+    points: 0.5,
+    passMessage: "Button/action elements detected.",
+    failMessage: "No obvious semantic button elements detected.",
+    recommendation:
       "Make sure important actions use semantic buttons or accessible links."
-    );
-  }
-
-  /**
-   * Performance
-   */
-  if (loadMs > 3500) {
-    deduct(
-      "performance",
-      2.2,
-      `Initial fetch took ${loadMs}ms.`,
-      "high",
-      "Review server response time, app scripts, large assets, and third-party scripts."
-    );
-  } else if (loadMs > 1800) {
-    deduct(
-      "performance",
-      1,
-      `Initial fetch took ${loadMs}ms.`,
-      "medium",
-      "There may be room to improve response speed."
-    );
-  } else {
-    win("performance", `Initial fetch time looks good at ${loadMs}ms.`);
-  }
-
-  if (scriptCount > 45) {
-    deduct(
-      "performance",
-      1.5,
-      `Very high script count detected: ${scriptCount}.`,
-      "high",
-      "Audit Shopify apps, tracking pixels, theme scripts, and unused JavaScript."
-    );
-  } else if (scriptCount > 30) {
-    deduct(
-      "performance",
-      0.8,
-      `High script count detected: ${scriptCount}.`,
-      "medium",
-      "Review whether all scripts are required."
-    );
-  }
-
-  if (styleCount > 18) {
-    deduct(
-      "performance",
-      0.5,
-      `High stylesheet/style count detected: ${styleCount}.`,
-      "low",
-      "Review theme and app CSS for duplication."
-    );
-  }
-
-  /**
-   * Conversion
-   */
-  const hasCTA = /add to cart|buy now|shop now|subscribe|checkout|get started|view product|choose option/i.test(text);
-  const hasPrice = /£|\$|€|price|sale|regular price|compare at|from £|from \$|from €/i.test(text);
-  const hasUrgency = /limited|selling fast|popular|bestseller|offer|save|discount|bundle/i.test(text);
-
-  if (!hasCTA) {
-    deduct(
-      "conversion",
-      1.8,
-      "No obvious conversion CTA detected.",
-      "high",
-      "Add or strengthen CTAs such as Add to Cart, Shop Now, Buy Now, or Subscribe."
-    );
-  } else {
-    win("conversion", "Conversion CTA detected.");
-  }
-
-  if (!hasPrice) {
-    deduct(
-      "conversion",
-      0.9,
-      "No clear pricing signal detected.",
-      "medium",
-      "Make price information visible on product and collection pages."
-    );
-  }
-
-  if (!hasUrgency) {
-    deduct(
-      "conversion",
-      0.4,
-      "No urgency, offer, bundle, or value signal detected.",
-      "low",
-      "Consider adding value messaging such as bundles, savings, bestsellers, or limited offers."
-    );
-  }
-
-  /**
-   * Trust
-   */
-  const trustSignals = {
-    reviews: /review|rated|stars|testimonial|customer/i.test(text),
-    delivery: /shipping|delivery|dispatch|returns|refund/i.test(text),
-    contact: /contact|email|support|help/i.test(text),
-    guarantee: /guarantee|secure|safe|trusted|money back/i.test(text)
-  };
-
-  Object.entries(trustSignals).forEach(([name, present]) => {
-    if (!present) {
-      deduct(
-        "trust",
-        0.5,
-        `Weak ${name} trust signal.`,
-        "medium",
-        `Add clearer ${name} information where relevant.`
-      );
-    }
   });
 
   /**
-   * Merchandising
+   * PERFORMANCE
    */
-  const merchandisingSignals = {
-    variants: /variant|flavour|flavor|size|pack|bundle|quantity/i.test(text),
-    ingredients: /ingredient|nutrition|vitamin|mineral|caffeine|sugar|calorie/i.test(text),
-    useCase: /gaming|study|work|focus|energy|workout|daily|morning/i.test(text),
-    benefits: /benefit|supports|helps|clean energy|healthy energy|focus/i.test(text)
-  };
-
-  Object.entries(merchandisingSignals).forEach(([name, present]) => {
-    if (!present) {
-      deduct(
-        "merchandising",
-        0.5,
-        `Weak ${name} merchandising signal.`,
-        "medium",
-        `Strengthen ${name} messaging on product or collection pages.`
-      );
-    }
+  check("performance", {
+    name: "Initial response speed",
+    passed: loadMs <= 1800,
+    severity: loadMs > 3500 ? "high" : "medium",
+    points: loadMs > 3500 ? 2.2 : 1,
+    passMessage: `Initial fetch time looks good at ${loadMs}ms.`,
+    failMessage: `Initial fetch took ${loadMs}ms.`,
+    recommendation:
+      "Review app scripts, large assets, server response time, third-party scripts and theme bloat."
   });
+
+  check("performance", {
+    name: "Script count",
+    passed: scriptCount <= 30,
+    severity: scriptCount > 45 ? "high" : "medium",
+    points: scriptCount > 45 ? 1.4 : 0.8,
+    passMessage: `Script count is acceptable at ${scriptCount}.`,
+    failMessage: `High script count detected: ${scriptCount}.`,
+    recommendation:
+      "Audit Shopify apps, pixels, tracking scripts and unused JavaScript."
+  });
+
+  check("performance", {
+    name: "Stylesheet count",
+    passed: styleCount <= 18,
+    severity: "low",
+    points: 0.4,
+    passMessage: `Stylesheet/style count is acceptable at ${styleCount}.`,
+    failMessage: `High stylesheet/style count detected: ${styleCount}.`,
+    recommendation:
+      "Review duplicated app CSS and theme CSS."
+  });
+
+  /**
+   * CONVERSION, TRUST, MERCHANDISING
+   */
+  commercialCheck("conversion", "Primary CTA", /add to cart|buy now|shop now|subscribe|checkout|get started|view product|choose option/i, text, 1.4);
+  commercialCheck("conversion", "Pricing clarity", /£|\$|€|price|sale|regular price|compare at|from £|from \$|from €/i, text, 0.8);
+  commercialCheck("conversion", "Value/offer signal", /limited|selling fast|popular|bestseller|offer|save|discount|bundle/i, text, 0.5);
+
+  commercialCheck("trust", "Reviews/social proof", /review|rated|stars|testimonial|customer/i, text, 0.7);
+  commercialCheck("trust", "Delivery/returns clarity", /shipping|delivery|dispatch|returns|refund/i, text, 0.7);
+  commercialCheck("trust", "Contact/help clarity", /contact|email|support|help/i, text, 0.5);
+  commercialCheck("trust", "Guarantee/security", /guarantee|secure|safe|trusted|money back/i, text, 0.5);
+
+  commercialCheck("merchandising", "Variant clarity", /variant|flavour|flavor|size|pack|bundle|quantity/i, text, 0.7);
+  commercialCheck("merchandising", "Ingredient/nutrition clarity", /ingredient|nutrition|vitamin|mineral|caffeine|sugar|calorie/i, text, 0.7);
+  commercialCheck("merchandising", "Use-case clarity", /gaming|study|work|focus|energy|workout|daily|morning/i, text, 0.7);
+  commercialCheck("merchandising", "Benefit clarity", /benefit|supports|helps|clean energy|healthy energy|focus/i, text, 0.7);
+
+  function commercialCheck(category, name, regex, inputText, points) {
+    check(category, {
+      name,
+      passed: regex.test(inputText),
+      severity: "medium",
+      points,
+      passMessage: `${name} signal found.`,
+      failMessage: `${name} signal appears weak or missing.`,
+      recommendation: `Strengthen ${name.toLowerCase()} messaging on important commercial pages.`
+    });
+  }
 
   const overallScore = average(Object.values(categoryScores));
-
-  insights.push({
-    label: "Word count",
-    value: wordCount,
-    note: "Approximate visible text words found in the HTML."
-  });
-
-  insights.push({
-    label: "Headings",
-    value: `${h1s.length} H1 / ${h2s.length} H2`,
-    note: "Useful for structure, scanning, SEO and GEO."
-  });
-
-  insights.push({
-    label: "Images",
-    value: `${imageStats.total} total / ${imageStats.missingAlt} missing alt`,
-    note: "Alt text helps accessibility and image context."
-  });
-
-  insights.push({
-    label: "Links",
-    value: `${links.internalCount} internal / ${links.externalCount} external`,
-    note: "Internal links help discovery and topical authority."
-  });
-
-  insights.push({
-    label: "Schema",
-    value: schema.types.length ? schema.types.join(", ") : "None detected",
-    note: "Structured data improves machine readability."
-  });
-
-  insights.push({
-    label: "Scripts",
-    value: scriptCount,
-    note: "High script counts can hurt performance."
-  });
 
   return {
     url,
@@ -533,6 +477,7 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
     metaDescription,
     h1s,
     h2s,
+    h3s,
     wordCount,
     scriptCount,
     styleCount,
@@ -541,11 +486,93 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
     links,
     overallScore,
     categoryScores,
+    categoryDetails,
     issues,
     wins,
-    recommendations: [...new Set(recommendations)].slice(0, 12),
-    insights,
+    recommendations: [...new Set(recommendations)].slice(0, 20),
+    insights: [
+      {
+        label: "Word count",
+        value: wordCount,
+        note: "Approximate visible text words."
+      },
+      {
+        label: "Headings",
+        value: `${h1s.length} H1 / ${h2s.length} H2 / ${h3s.length} H3`,
+        note: "Useful for SEO, scanning and GEO."
+      },
+      {
+        label: "Images",
+        value: `${imageStats.total} total / ${imageStats.missingAlt} missing alt`,
+        note: "Alt text helps accessibility and context."
+      },
+      {
+        label: "Links",
+        value: `${links.internalCount} internal / ${links.externalCount} external`,
+        note: "Internal links help topical authority."
+      },
+      {
+        label: "Schema",
+        value: schema.types.length ? schema.types.join(", ") : "None detected",
+        note: "Structured data supports machine readability."
+      },
+      {
+        label: "Scripts",
+        value: scriptCount,
+        note: "High script counts can slow pages."
+      }
+    ],
     checkedAt: new Date().toISOString()
+  };
+}
+
+export function summariseSiteAudit(results) {
+  const validResults = results.filter((r) => r && r.categoryScores);
+  const averageScore = average(validResults.map((r) => r.overallScore));
+
+  const categoryAverages = {};
+
+  CATEGORIES.forEach((category) => {
+    categoryAverages[category] = average(
+      validResults.map((r) => r.categoryScores[category] || 0)
+    );
+  });
+
+  const allIssues = validResults.flatMap((result) =>
+    result.issues.map((issue) => ({
+      ...issue,
+      url: result.url,
+      pageTitle: result.title
+    }))
+  );
+
+  const issueCounts = {};
+  allIssues.forEach((issue) => {
+    const key = issue.category;
+    issueCounts[key] = (issueCounts[key] || 0) + 1;
+  });
+
+  const weakestPages = [...validResults]
+    .sort((a, b) => a.overallScore - b.overallScore)
+    .slice(0, 10);
+
+  const strongestPages = [...validResults]
+    .sort((a, b) => b.overallScore - a.overallScore)
+    .slice(0, 10);
+
+  const priorityIssues = allIssues
+    .filter((issue) => ["critical", "high"].includes(issue.severity))
+    .slice(0, 25);
+
+  return {
+    averageScore,
+    categoryAverages,
+    totalPages: validResults.length,
+    totalIssues: allIssues.length,
+    issueCounts,
+    weakestPages,
+    strongestPages,
+    priorityIssues
   };
 }
 
@@ -559,21 +586,11 @@ export function compareAudits(primary, competitors = []) {
       );
     });
 
-    const strongerCategories = Object.entries(categoryDiffs)
-      .filter(([, diff]) => diff > 0.4)
-      .map(([category, diff]) => ({ category, diff }));
-
-    const weakerCategories = Object.entries(categoryDiffs)
-      .filter(([, diff]) => diff < -0.4)
-      .map(([category, diff]) => ({ category, diff: Math.abs(diff) }));
-
     return {
       url: competitor.url,
       title: competitor.title,
       overallDifference: round1(competitor.overallScore - primary.overallScore),
       categoryDiffs,
-      strongerCategories,
-      weakerCategories,
       competitorScore: competitor.overallScore
     };
   });
@@ -596,7 +613,7 @@ export function compareAudits(primary, competitors = []) {
     if (competitor.wordCount > primary.wordCount * 1.5) {
       opportunities.push({
         category: "content",
-        message: `Competitor has much deeper visible content: ${competitor.wordCount} words vs your ${primary.wordCount}.`,
+        message: `Competitor has deeper visible content: ${competitor.wordCount} words vs your ${primary.wordCount}.`,
         competitorUrl: competitor.url
       });
     }
@@ -608,22 +625,22 @@ export function compareAudits(primary, competitors = []) {
         competitorUrl: competitor.url
       });
     }
-
-    if (competitor.h2s.length > primary.h2s.length + 2) {
-      opportunities.push({
-        category: "content",
-        message: `Competitor has more structured sections: ${competitor.h2s.length} H2s vs your ${primary.h2s.length}.`,
-        competitorUrl: competitor.url
-      });
-    }
   });
 
   return {
     primaryUrl: primary.url,
     primaryScore: primary.overallScore,
     competitors: comparisons,
-    opportunities: opportunities.slice(0, 12)
+    opportunities: opportunities.slice(0, 20)
   };
+}
+
+function createCategoryScores() {
+  return Object.fromEntries(CATEGORIES.map((category) => [category, 10]));
+}
+
+function createCategoryDetails() {
+  return Object.fromEntries(CATEGORIES.map((category) => [category, []]));
 }
 
 function extractTitle(html) {
@@ -648,12 +665,14 @@ function extractHeadings(html, tag) {
     headings.push(cleanText(stripTags(match[1])));
   }
 
-  return headings.filter(Boolean).slice(0, 20);
+  return headings.filter(Boolean).slice(0, 40);
 }
 
 function analyseImages(html) {
   const imageTags = html.match(/<img\b[^>]*>/gi) || [];
-  const missingAlt = imageTags.filter((img) => !/\salt=["'][^"']*["']/i.test(img)).length;
+  const missingAlt = imageTags.filter(
+    (img) => !/\salt=["'][^"']*["']/i.test(img)
+  ).length;
 
   return {
     total: imageTags.length,
@@ -662,7 +681,9 @@ function analyseImages(html) {
 }
 
 function analyseLinks(html, pageUrl) {
-  const linkMatches = [...html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi)];
+  const linkMatches = [
+    ...html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi)
+  ];
   const origin = getOrigin(pageUrl);
 
   let internalCount = 0;
@@ -671,7 +692,12 @@ function analyseLinks(html, pageUrl) {
   linkMatches.forEach((match) => {
     const href = match[1];
 
-    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
+    if (
+      !href ||
+      href.startsWith("#") ||
+      href.startsWith("mailto:") ||
+      href.startsWith("tel:")
+    ) {
       return;
     }
 
@@ -693,7 +719,11 @@ function analyseSchema(html) {
   const hasJsonLd = /application\/ld\+json/i.test(html);
   const types = new Set();
 
-  const jsonLdMatches = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+  const jsonLdMatches = [
+    ...html.matchAll(
+      /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+    )
+  ];
 
   jsonLdMatches.forEach((match) => {
     try {
@@ -701,13 +731,13 @@ function analyseSchema(html) {
       const parsed = JSON.parse(raw);
       collectSchemaTypes(parsed, types);
     } catch {
-      // Ignore invalid JSON-LD for now.
+      // Ignore invalid JSON-LD in this version.
     }
   });
 
   return {
     hasJsonLd,
-    types: [...types].slice(0, 12)
+    types: [...types].slice(0, 20)
   };
 }
 
@@ -740,6 +770,7 @@ function extractVisibleText(html) {
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
       .replace(/<[^>]+>/g, " ")
   );
 }
@@ -774,9 +805,13 @@ function cleanJson(value) {
 }
 
 function average(values) {
-  if (!values.length) return 0;
-  const total = values.reduce((sum, value) => sum + value, 0);
-  return round1(total / values.length);
+  const cleanValues = values.filter((value) => typeof value === "number");
+
+  if (!cleanValues.length) return 0;
+
+  const total = cleanValues.reduce((sum, value) => sum + value, 0);
+
+  return round1(total / cleanValues.length);
 }
 
 function round1(value) {

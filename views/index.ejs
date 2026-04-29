@@ -12,26 +12,30 @@
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">Gaming Nectar Intelligence</p>
-          <h1>SEO, GEO & Conversion Quality Auditor</h1>
+          <h1>SEO, GEO & Site Quality Dashboard</h1>
           <p>
-            Score pages out of 10, expose granular weaknesses, identify what is working,
-            and compare your pages against competitors.
+            Crawl your site, score individual pages, compare competitors, and
+            break issues into SEO, GEO, technical, linking, content, trust,
+            conversion and merchandising tabs.
           </p>
 
           <div class="hero-pills">
-            <span>SEO</span>
+            <span>Full-site crawl</span>
             <span>GEO</span>
-            <span>UX</span>
-            <span>Conversion</span>
-            <span>Trust</span>
-            <span>Merchandising</span>
+            <span>SEO</span>
+            <span>Technical</span>
+            <span>Linking</span>
+            <span>Content</span>
+            <span>Competitors</span>
           </div>
         </div>
 
         <div class="hero-panel">
-          <span class="panel-number">9</span>
-          <span class="panel-label">Audit categories</span>
-          <p>Built to expand into Google Search Console, MongoDB history, Shopify data, and AI search readiness.</p>
+          <span class="panel-number">10</span>
+          <span class="panel-label">Audit areas</span>
+          <p>
+            Built to become a proper MongoDB-backed monitoring dashboard next.
+          </p>
         </div>
       </section>
 
@@ -39,21 +43,55 @@
         <div class="error"><%= error %></div>
       <% } %>
 
-      <section class="tool-grid">
+      <section class="tool-grid three-tools">
+        <article class="card card-accent">
+          <div class="card-heading">
+            <p class="eyebrow">Recommended</p>
+            <h2>Full-site crawl</h2>
+            <p>
+              Enter your homepage. The app will read your sitemap and audit up
+              to 100 URLs.
+            </p>
+          </div>
+
+          <form method="POST" action="/audit">
+            <input type="hidden" name="mode" value="site" />
+
+            <label for="siteUrl">Site URL</label>
+            <input
+              id="siteUrl"
+              name="siteUrl"
+              type="text"
+              placeholder="https://www.gamingnectar.com"
+            />
+
+            <label for="maxUrls">Maximum URLs</label>
+            <input
+              id="maxUrls"
+              name="maxUrls"
+              type="number"
+              min="5"
+              max="100"
+              value="50"
+            />
+
+            <button type="submit">Run full-site crawl</button>
+          </form>
+        </article>
+
         <article class="card">
           <div class="card-heading">
-            <p class="eyebrow">Standard audit</p>
-            <h2>Audit your pages</h2>
+            <p class="eyebrow">Page audit</p>
+            <h2>Audit selected URLs</h2>
             <p>
-              Paste up to 10 URLs. The app checks structure, SEO, GEO, performance,
-              trust, conversion, and merchandising signals.
+              Paste specific URLs when you want to inspect key pages manually.
             </p>
           </div>
 
           <form method="POST" action="/audit">
             <input type="hidden" name="mode" value="standard" />
 
-            <label for="urls">Your URLs</label>
+            <label for="urls">URLs, one per line</label>
 
             <textarea
               id="urls"
@@ -69,10 +107,10 @@
         <article class="card card-dark">
           <div class="card-heading">
             <p class="eyebrow">Competitor analysis</p>
-            <h2>Compare against competitors</h2>
+            <h2>Compare competitors</h2>
             <p>
-              Add one Gaming Nectar page and up to five competitor URLs to see where
-              they are stronger and what you should improve first.
+              Add your page and up to five competitor URLs to see where they are
+              stronger.
             </p>
           </div>
 
@@ -87,7 +125,7 @@
               placeholder="https://www.gamingnectar.com/products/example"
             />
 
-            <label for="competitorUrls">Competitor URLs, one per line</label>
+            <label for="competitorUrls">Competitor URLs</label>
             <textarea
               id="competitorUrls"
               name="competitorUrls"
@@ -98,26 +136,6 @@
             <button type="submit">Run competitor analysis</button>
           </form>
         </article>
-      </section>
-
-      <section class="feature-grid">
-        <div>
-          <span class="feature-icon">01</span>
-          <h3>Technical & SEO</h3>
-          <p>Status codes, titles, descriptions, H1s, canonicals, links, schema and structure.</p>
-        </div>
-
-        <div>
-          <span class="feature-icon">02</span>
-          <h3>GEO readiness</h3>
-          <p>Answer-style content, structured data, entity clarity, FAQs and comparison signals.</p>
-        </div>
-
-        <div>
-          <span class="feature-icon">03</span>
-          <h3>Commercial quality</h3>
-          <p>CTAs, pricing clarity, trust signals, reviews, bundles, benefits and merchandising depth.</p>
-        </div>
       </section>
     </main>
   </body>
