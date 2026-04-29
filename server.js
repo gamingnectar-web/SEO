@@ -1,13 +1,15 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { auditMultipleUrls, auditWithCompetitors } from "./services/audit/crawler.js";
+import {
+  auditMultipleUrls,
+  auditWithCompetitors
+} from "./services/audit/crawler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-
 const PORT = process.env.PORT || 3000;
 
 app.set("view engine", "ejs");
@@ -19,73 +21,101 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (req, res) => {
   res.render("index", {
-    title: "Gaming Nectar Site Quality Auditor"
+    title: "Gaming Nectar Site Quality Auditor",
+    error: null
   });
 });
 
+app.get("/audit", (req, res) => {
+  res.redirect("/");
+});
+
 app.post("/audit", async (req, res) => {
-  const mode = req.body.mode || "standard";
+  try {
+    const mode = req.body.mode || "standard";
 
-  if (mode === "competitor") {
-    const primaryUrl = String(req.body.primaryUrl || "").trim();
+    if (mode === "competitor") {
+      const primaryUrl = String(req.body.primaryUrl || "").trim();
 
-    const competitorUrls = String(req.body.competitorUrls || "")
+      const competitorUrls = String(req.body.competitorUrls || "")
+        .split("\n")
+        .map((url) => url.trim())
+        .filter(Boolean)
+        .slice(0, 5);
+
+      if (!primaryUrl) {
+        return res.render("index", {
+          title: "Gaming Nectar Site Quality Auditor",
+          error: "Please enter your page URL before running competitor analysis."
+        });
+      }
+
+      if (!competitorUrls.length) {
+        return res.render("index", {
+          title: "Gaming Nectar Site Quality Auditor",
+          error: "Please enter at least one competitor URL."
+        });
+      }
+
+      const competitorAnalysis = await auditWithCompetitors(
+        primaryUrl,
+        competitorUrls
+      );
+
+      return res.render("results", {
+        title: "Competitor Audit Results",
+        results: [
+          competitorAnalysis.primary,
+          ...competitorAnalysis.competitors
+        ],
+        competitorAnalysis
+      });
+    }
+
+    const rawUrls = req.body.urls || "";
+
+    const urls = rawUrls
       .split("\n")
       .map((url) => url.trim())
       .filter(Boolean)
-      .slice(0, 5);
+      .slice(0, 10);
 
-    if (!primaryUrl) {
+    if (!urls.length) {
       return res.render("index", {
         title: "Gaming Nectar Site Quality Auditor",
-        error: "Please enter your page URL before running competitor analysis."
+        error: "Please enter at least one URL."
       });
     }
 
-    if (!competitorUrls.length) {
-      return res.render("index", {
-        title: "Gaming Nectar Site Quality Auditor",
-        error: "Please enter at least one competitor URL."
-      });
-    }
-
-    const competitorAnalysis = await auditWithCompetitors(primaryUrl, competitorUrls);
+    const results = await auditMultipleUrls(urls);
 
     return res.render("results", {
-      title: "Competitor Audit Results",
-      results: [competitorAnalysis.primary, ...competitorAnalysis.competitors],
-      competitorAnalysis
+      title: "Audit Results",
+      results,
+      competitorAnalysis: null
     });
-  }
+  } catch (error) {
+    console.error("Audit route error:", error);
 
-  const rawUrls = req.body.urls || "";
-
-  const urls = rawUrls
-    .split("\n")
-    .map((url) => url.trim())
-    .filter(Boolean)
-    .slice(0, 10);
-
-  if (!urls.length) {
-    return res.render("index", {
+    return res.status(500).render("index", {
       title: "Gaming Nectar Site Quality Auditor",
-      error: "Please enter at least one URL."
+      error:
+        "Something went wrong while running the audit. Check the Render logs for details."
     });
   }
-
-  const results = await auditMultipleUrls(urls);
-
-  res.render("results", {
-    title: "Audit Results",
-    results,
-    competitorAnalysis: null
-  });
 });
 
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok",
     app: "Gaming Nectar Site Quality Auditor"
+  });
+});
+
+app.use((req, res) => {
+  res.status(404).render("index", {
+    title: "Gaming Nectar Site Quality Auditor",
+    error: `The page "${req.path}" does not exist. Use the audit form below.`
   });
 });
 
