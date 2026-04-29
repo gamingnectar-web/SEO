@@ -128,6 +128,66 @@
             <p class="eyebrow">Deep dive</p>
             <h2><%= formatCategory(category) %> analysis</h2>
           </div>
+                    <% const improvementPlan = siteAudit?.improvementPlans?.[category] || []; %>
+
+          <% if (improvementPlan.length) { %>
+            <section class="improvement-panel">
+              <div class="section-heading compact">
+                <p class="eyebrow">Priority improvements</p>
+                <h3>What to improve first</h3>
+              </div>
+
+              <div class="improvement-list">
+                <% improvementPlan.forEach(function(item) { %>
+                  <article class="improvement-card">
+                    <div class="improvement-head">
+                      <div>
+                        <span class="priority-pill"><%= item.priority.label %></span>
+                        <h4><%= item.checkName %></h4>
+                      </div>
+
+                      <strong><%= item.count %> pages</strong>
+                    </div>
+
+                    <div class="improvement-context">
+                      <div>
+                        <span>Why it matters</span>
+                        <p><%= item.context.why %></p>
+                      </div>
+
+                      <div>
+                        <span>How to improve</span>
+                        <p><%= item.context.how %></p>
+                      </div>
+
+                      <div>
+                        <span>Example</span>
+                        <p><%= item.context.example %></p>
+                      </div>
+                    </div>
+
+                    <% if (item.affectedPages.length) { %>
+                      <details class="affected-pages">
+                        <summary>View affected pages</summary>
+
+                        <ul>
+                          <% item.affectedPages.forEach(function(page) { %>
+                            <li>
+                              <strong><%= page.title %></strong>
+                              <small><%= page.url %></small>
+                              <% if (page.evidence) { %>
+                                <em>Evidence: <%= page.evidence %></em>
+                              <% } %>
+                            </li>
+                          <% }) %>
+                        </ul>
+                      </details>
+                    <% } %>
+                  </article>
+                <% }) %>
+              </div>
+            </section>
+          <% } %>
 
           <div class="deep-list">
             <% results.forEach(function(result) { %>
@@ -166,6 +226,53 @@
           <p class="eyebrow">Revenue quality</p>
           <h2>Conversion, trust and merchandising</h2>
         </div>
+
+                <% const commercialPlans = [
+          ...(siteAudit?.improvementPlans?.conversion || []),
+          ...(siteAudit?.improvementPlans?.trust || []),
+          ...(siteAudit?.improvementPlans?.merchandising || [])
+        ]; %>
+
+        <% if (commercialPlans.length) { %>
+          <section class="improvement-panel">
+            <div class="section-heading compact">
+              <p class="eyebrow">Priority improvements</p>
+              <h3>What to improve first commercially</h3>
+            </div>
+
+            <div class="improvement-list">
+              <% commercialPlans.slice(0, 12).forEach(function(item) { %>
+                <article class="improvement-card">
+                  <div class="improvement-head">
+                    <div>
+                      <span class="priority-pill"><%= item.priority.label %></span>
+                      <h4><%= item.checkName %></h4>
+                    </div>
+
+                    <strong><%= item.count %> pages</strong>
+                  </div>
+
+                  <div class="improvement-context">
+                    <div>
+                      <span>Why it matters</span>
+                      <p><%= item.context.why %></p>
+                    </div>
+
+                    <div>
+                      <span>How to improve</span>
+                      <p><%= item.context.how %></p>
+                    </div>
+
+                    <div>
+                      <span>Example</span>
+                      <p><%= item.context.example %></p>
+                    </div>
+                  </div>
+                </article>
+              <% }) %>
+            </div>
+          </section>
+        <% } %>
 
         <% ["conversion", "trust", "merchandising"].forEach(function(category) { %>
           <section class="panel spaced-panel">

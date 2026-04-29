@@ -1,7 +1,8 @@
 import {
   calculatePageAudit,
   compareAudits,
-  summariseSiteAudit
+  summariseSiteAudit,
+  buildImprovementPlan
 } from "./scoring.js";
 
 export async function auditMultipleUrls(urls) {
@@ -26,7 +27,18 @@ export async function auditSiteFromSitemap(siteUrl, options = {}) {
     results.push(await auditSingleUrl(url));
   }
 
-  const summary = summariseSiteAudit(results);
+    const summary = summariseSiteAudit(results);
+
+  const improvementPlans = {
+    geo: buildImprovementPlan(results, "geo"),
+    seo: buildImprovementPlan(results, "seo"),
+    technical: buildImprovementPlan(results, "technical"),
+    linking: buildImprovementPlan(results, "linking"),
+    content: buildImprovementPlan(results, "content"),
+    conversion: buildImprovementPlan(results, "conversion"),
+    trust: buildImprovementPlan(results, "trust"),
+    merchandising: buildImprovementPlan(results, "merchandising")
+  };
 
   return {
     siteUrl: normaliseUrl(siteUrl),
@@ -35,7 +47,8 @@ export async function auditSiteFromSitemap(siteUrl, options = {}) {
     maxUrls,
     discoveredCount: discoveredUrls.length,
     results,
-    summary
+    summary,
+    improvementPlans
   };
 }
 

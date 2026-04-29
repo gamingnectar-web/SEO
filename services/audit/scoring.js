@@ -707,6 +707,352 @@ export function compareAudits(primary, competitors = []) {
     opportunities: opportunities.slice(0, 20)
   };
 }
+export function buildImprovementPlan(results, category) {
+  const failedChecks = [];
+
+  results.forEach((result) => {
+    const checks = result.categoryDetails?.[category] || [];
+
+    checks.forEach((check) => {
+      if (check.status === "fail") {
+        failedChecks.push({
+          url: result.url,
+          title: result.title || "Untitled page",
+          checkName: check.name,
+          severity: check.severity || "medium",
+          message: check.message,
+          recommendation: check.recommendation || "",
+          evidence: check.evidence || ""
+        });
+      }
+    });
+  });
+
+  const grouped = {};
+
+  failedChecks.forEach((item) => {
+    if (!grouped[item.checkName]) {
+      grouped[item.checkName] = {
+        checkName: item.checkName,
+        severity: item.severity,
+        message: item.message,
+        recommendation: item.recommendation,
+        affectedPages: [],
+        count: 0
+      };
+    }
+
+    grouped[item.checkName].count += 1;
+
+    grouped[item.checkName].affectedPages.push({
+      url: item.url,
+      title: item.title,
+      evidence: item.evidence
+    });
+  });
+
+  return Object.values(grouped)
+    .map((item) => ({
+      ...item,
+      priority: calculatePriority(item.count, item.severity),
+      context: getImprovementContext(category, item.checkName),
+      affectedPages: item.affectedPages.slice(0, 8)
+    }))
+    .sort((a, b) => b.priority.score - a.priority.score)
+    .slice(0, 12);
+}
+
+function calculatePriority(count, severity) {
+  const severityWeight = {
+    critical: 5,
+    high: 4,
+    medium: 3,
+    low: 2
+  };
+
+  const score = count * (severityWeight[severity] || 2);
+
+  if (score >= 40) {
+    return {
+      label: "High priority",
+      score
+    };
+  }
+
+  if (score >= 15) {
+    return {
+      label: "Medium priority",
+      score
+    };
+  }
+
+  return {
+    label: "Low priority",
+    score
+  };
+}
+
+function getImprovementContext(category, checkName) {
+  const contexts = {
+    geo: {
+      "JSON-LD structured data": {
+        why:
+          "Structured data helps search engines and AI systems understand the page as a machine-readable entity, not just raw text.",
+        how:
+          "Add valid JSON-LD schema. For Shopify, prioritise Product, Organization, BreadcrumbList, FAQPage, CollectionPage and Article schema where relevant.",
+        example:
+          "A product page should clearly expose product name, image, description, price, availability, brand and reviews where available."
+      },
+            "Schema type clarity": {
+        why:
+          "If schema exists but the type is unclear or invalid, AI and search systems may not confidently classify the page.",
+        how:
+          "Check the JSON-LD and make sure every schema block includes a clear @type. Validate using Google Rich Results Test or Schema.org validator.",
+        example:
+          "Use @type: Product for product pages, @type: FAQPage for FAQ sections and @type: Organization for brand information."
+      },
+      "Answer-style copy": {
+        why:
+          "Generative engines often extract direct answers. Pages that only use marketing copy can be harder for AI systems to quote or summarise.",
+        how:
+          "Add short explanatory sections that answer what the product is, who it is for, how it works, why it is different and when to use it.",
+        example:
+          "Add sections like: What is Gaming Nectar? Who is it best for? How much caffeine is in it? Is it suitable for daily use?"
+      },
+      "FAQ coverage": {
+        why:
+          "FAQs are one of the clearest formats for AI search because they map directly to user questions.",
+        how:
+          "Add 4–8 genuine customer questions to important product, collection and landing pages. Keep answers concise and factual.",
+        example:
+          "Questions could cover caffeine, sugar, calories, ingredients, delivery, subscriptions, returns and usage."
+      },
+      "Entity clarity": {
+        why:
+          "AI systems need to understand the entity: the brand, product category, ingredients, audience and differentiators.",
+        how:
+          "Explicitly state who Gaming Nectar is, what the product is, what category it belongs to, and what makes it different.",
+        example:
+          "Instead of only saying 'clean kick', also say 'Gaming Nectar is a healthier energy drink designed for gamers, work and focus.'"
+      },
+      "Comparison context": {
+        why:
+          "AI answers often compare options. If your page does not explain how you compare to alternatives, competitors can dominate comparison queries.",
+        how:
+          "Add comparison content against coffee, standard energy drinks, sugary drinks, powdered energy products or competitor products.",
+        example:
+          "Create sections like 'Gaming Nectar vs traditional energy drinks' or 'Gaming Nectar vs coffee'."
+      },
+      "Evidence and proof": {
+        why:
+          "AI systems and users both trust pages more when claims are backed by specific evidence.",
+        how:
+          "Add reviews, ratings, ingredient rationale, nutritional facts, testing claims, customer outcomes or transparent product details.",
+        example:
+          "If you say 'healthy energy', support that with sugar level, vitamins, minerals, calories and caffeine content."
+      },
+      "Topical coverage": {
+        why:
+          "A page with shallow topical language may not be seen as authoritative for its intended search area.",
+        how:
+          "Add related terms naturally: energy, focus, gaming, study, work, hydration, vitamins, minerals, sugar and calories.",
+        example:
+          "Product and collection pages should describe use cases, benefits, ingredients and situations where the product fits."
+      },
+      "Source-of-truth clarity": {
+        why:
+          "AI systems prefer clear, consistent, easily found factual information across a site.",
+        how:
+          "Make ingredients, nutrition, shipping, returns, reviews, contact and guarantee information easy to find.",
+        example:
+          "Add persistent links or sections for ingredients, nutrition, delivery, returns and customer support."
+      }
+    },
+
+    seo: {
+      "Title exists": {
+        why:
+          "The title tag is one of the strongest page-level SEO signals and heavily influences search result snippets.",
+        how:
+          "Write a unique title for every important page. Put the main query or product/category topic near the front.",
+        example:
+          "Gaming Energy Drink | Clean Energy for Focus | Gaming Nectar"
+      },
+      "Title length": {
+        why:
+          "Titles that are too short lack context; titles that are too long can be truncated.",
+        how:
+          "Aim for useful, readable titles around 25–65 characters.",
+        example:
+          "Healthy Energy Drink for Gaming & Focus | Gaming Nectar"
+      },
+      "Meta description exists": {
+        why:
+          "Meta descriptions do not directly guarantee ranking, but they influence click-through and help frame the page.",
+        how:
+          "Add a persuasive description that explains what the page offers and why someone should click.",
+        example:
+          "Discover Gaming Nectar, a cleaner energy drink with vitamins and minerals for focus, gaming and everyday energy."
+      },
+      "Meta description length": {
+        why:
+          "Very short descriptions lack detail, while very long ones may be truncated.",
+        how:
+          "Aim for roughly 90–170 characters with a clear benefit and page topic.",
+        example:
+          "A clean energy drink made for gamers, creators and busy days. Explore flavours, benefits, ingredients and bundles."
+      },
+      "Single H1": {
+        why:
+          "The H1 helps search engines and users understand the main page topic.",
+        how:
+          "Use one clear H1 per page. Make it specific to the product, category or page purpose.",
+        example:
+          "Clean Energy Drinks for Gaming and Focus"
+      }
+    },
+
+    technical: {
+      "HTTP status": {
+        why:
+          "Pages returning errors or redirects can waste crawl budget and weaken user experience.",
+        how:
+          "Fix broken URLs, server errors, unnecessary redirects or inaccessible pages.",
+        example:
+          "Important pages should return 200 OK unless intentionally redirected."
+      },
+      "Complete HTML": {
+        why:
+          "Incomplete HTML can indicate rendering, server or crawler-access problems.",
+        how:
+          "Check whether the page loads fully, whether scripts are blocking content, or whether the request is being interrupted.",
+        example:
+          "View source and confirm the closing html tag and main content are present."
+      },
+      "Mobile viewport": {
+        why:
+          "A missing viewport tag can hurt mobile usability.",
+        how:
+          "Ensure your theme includes a viewport meta tag in the document head.",
+        example:
+          '<meta name="viewport" content="width=device-width, initial-scale=1">'
+      },
+      "Canonical": {
+        why:
+          "Canonical tags help prevent duplicate URL confusion.",
+        how:
+          "Add canonical tags pointing to the preferred version of each page.",
+        example:
+          "A product page should canonicalise to its clean product URL."
+      },
+      "Indexability hints": {
+        why:
+          "A noindex directive can prevent a page from appearing in Google.",
+        how:
+          "Remove noindex from pages that should rank. Keep noindex only for intentional private/utility pages.",
+        example:
+          "Collection, product and content pages should usually be indexable."
+      }
+    },
+
+    linking: {
+      "Internal links": {
+        why:
+          "Internal links help distribute authority and show relationships between products, collections and guides.",
+        how:
+          "Add contextual links between related products, collection pages, FAQs, blog posts and buying guides.",
+        example:
+          "From a product page, link to ingredients, bundles, subscription, FAQ and related flavours."
+      },
+      "External links": {
+        why:
+          "Trusted external references can support claims and improve credibility.",
+        how:
+          "Where appropriate, link to review platforms, certifications, studies, ingredient sources or social proof.",
+        example:
+          "If mentioning an ingredient benefit, link to a credible source or explain the evidence clearly."
+      },
+      "Link volume balance": {
+        why:
+          "Too many links can make a page feel cluttered and dilute attention.",
+        how:
+          "Reduce repeated navigation/filter links and prioritise useful contextual links.",
+        example:
+          "Avoid bloated menus or repeated product links if they do not help users."
+      }
+    },
+
+    content: {
+      "Content depth": {
+        why:
+          "Thin pages often fail to answer enough user questions to rank or convert well.",
+        how:
+          "Add deeper copy covering benefits, use cases, ingredients, comparisons, objections, FAQs and trust signals.",
+        example:
+          "A product page should explain what it is, who it is for, why it is different, ingredients, usage and FAQs."
+      },
+      "Section structure": {
+        why:
+          "Clear sections improve scanning, SEO and AI extraction.",
+        how:
+          "Use H2 sections for benefits, ingredients, FAQs, reviews, delivery, comparisons and usage.",
+        example:
+          "Suggested H2s: Benefits, Ingredients, How to Use, FAQs, Reviews, Delivery & Returns."
+      },
+      "Content signal: benefits": {
+        why:
+          "Users need to understand the outcome, not just the product.",
+        how:
+          "Explain the practical benefits in clear, specific language.",
+        example:
+          "Supports focus, cleaner energy, lower sugar, vitamins and minerals."
+      },
+      "Content signal: ingredients": {
+        why:
+          "Ingredients and nutrition matter strongly for food/drink trust and GEO.",
+        how:
+          "Show ingredient and nutrition information clearly on product pages.",
+        example:
+          "Include caffeine, sugar, calories, vitamins, minerals and flavour information."
+      },
+      "Content signal: usage": {
+        why:
+          "Usage context helps customers understand when and why to buy.",
+        how:
+          "Add guidance on when to drink it and who it suits.",
+        example:
+          "For gaming sessions, work focus, studying, workouts or busy days."
+      },
+      "Content signal: objections": {
+        why:
+          "Objections stop purchases. Addressing them improves conversion.",
+        how:
+          "Answer concerns around delivery, returns, safety, subscription, taste and ingredients.",
+        example:
+          "Add sections for shipping, returns, caffeine level and daily use."
+      },
+      "Content signal: socialProof": {
+        why:
+          "Reviews and proof reduce purchase hesitation.",
+        how:
+          "Add reviews, ratings, testimonials and real customer feedback.",
+        example:
+          "Show review stars near the product title and detailed reviews lower on the page."
+      }
+    }
+  };
+
+  return (
+    contexts[category]?.[checkName] || {
+      why:
+        "This signal helps users, search engines and AI systems understand the page more clearly.",
+      how:
+        "Improve the page by making the information clearer, more specific and easier to find.",
+      example:
+        "Add concise, specific copy and structure it with clear headings and supporting details."
+    }
+  );
+}
 
 function createCategoryScores() {
   return Object.fromEntries(CATEGORIES.map((category) => [category, 10]));
