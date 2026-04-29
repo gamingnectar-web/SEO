@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+
+  <body>
+    <main class="page">
+      <div class="topbar">
+        <div>
+          <p class="eyebrow">Gaming Nectar</p>
+          <h1>Audit Results</h1>
+        </div>
+
+        <a class="back-link" href="/">Run another audit</a>
+      </div>
+
+      <section class="results-list">
+        <% results.forEach(function(result) { %>
+          <article class="result-card">
+            <div class="result-header">
+              <div>
+                <p class="url"><%= result.url %></p>
+                <h2><%= result.title || "Untitled page" %></h2>
+                <% if (result.metaDescription) { %>
+                  <p class="meta-description"><%= result.metaDescription %></p>
+                <% } %>
+              </div>
+
+              <div class="score-box">
+                <span class="score"><%= result.overallScore %></span>
+                <span class="score-total">/10</span>
+                <span class="score-label">
+                  <% if (result.overallScore >= 8) { %>
+                    Strong
+                  <% } else if (result.overallScore >= 6) { %>
+                    Needs work
+                  <% } else { %>
+                    Priority fix
+                  <% } %>
+                </span>
+              </div>
+            </div>
+
+            <div class="meta-grid">
+              <div>
+                <span>Status</span>
+                <strong><%= result.status || "Unknown" %></strong>
+              </div>
+
+              <div>
+                <span>Load time</span>
+                <strong><%= result.loadMs %>ms</strong>
+              </div>
+
+              <div>
+                <span>Issues</span>
+                <strong><%= result.issues.length %></strong>
+              </div>
+            </div>
+
+            <h3>Category scores</h3>
+
+            <div class="category-grid">
+              <% Object.entries(result.categoryScores).forEach(function(entry) { %>
+                <div class="category-item">
+                  <span><%= formatCategory(entry[0]) %></span>
+                  <strong><%= entry[1] %>/10</strong>
+                </div>
+              <% }) %>
+            </div>
+
+            <details class="details">
+              <summary>View issue breakdown</summary>
+
+              <% if (result.issues.length) { %>
+                <ul class="issue-list">
+                  <% result.issues.forEach(function(issue) { %>
+                    <li>
+                      <span class="issue-category"><%= formatCategory(issue.category) %></span>
+                      <span class="issue-message"><%= issue.message %></span>
+                      <span class="issue-severity"><%= issue.severity %></span>
+                    </li>
+                  <% }) %>
+                </ul>
+              <% } else { %>
+                <p>No major issues detected.</p>
+              <% } %>
+            </details>
+
+            <% if (result.recommendations && result.recommendations.length) { %>
+              <details class="details">
+                <summary>View recommendations</summary>
+
+                <ul class="recommendation-list">
+                  <% result.recommendations.forEach(function(recommendation) { %>
+                    <li><%= recommendation %></li>
+                  <% }) %>
+                </ul>
+              </details>
+            <% } %>
+          </article>
+        <% }) %>
+      </section>
+    </main>
+  </body>
+</html>
+
+<%
+function formatCategory(category) {
+  return category
+    .split("_")
+    .join(" ")
+    .replace(/\b\w/g, function(letter) {
+      return letter.toUpperCase();
+    });
+}
+%>

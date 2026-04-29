@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">Gaming Nectar</p>
+        <h1>Site Quality Auditor</h1>
+        <p>
+          Score pages out of 10 across SEO, GEO, functionality, accessibility,
+          performance, conversion, trust, and merchandising.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Run an audit</h2>
+
+        <% if (typeof error !== "undefined" && error) { %>
+          <div class="error"><%= error %></div>
+        <% } %>
+
+        <form method="POST" action="/audit">
+          <label for="urls">Enter one URL per line</label>
+
+          <textarea
+            id="urls"
+            name="urls"
+            rows="8"
+            placeholder="https://www.gamingnectar.com/&#10;https://www.gamingnectar.com/products/example"
+          ></textarea>
+
+          <button type="submit">Run audit</button>
+        </form>
+      </section>
+
+      <section class="info-grid">
+        <div>
+          <h3>SEO</h3>
+          <p>Titles, descriptions, H1s, canonicals and basic indexability signals.</p>
+        </div>
+
+        <div>
+          <h3>GEO</h3>
+          <p>Structured data, answer-style content, entity clarity and AI search readiness.</p>
+        </div>
+
+        <div>
+          <h3>Conversion</h3>
+          <p>CTA visibility, pricing signals, trust markers and product merchandising.</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
