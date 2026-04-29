@@ -11,78 +11,162 @@
     <main class="page">
       <div class="topbar">
         <div>
-          <p class="eyebrow">Gaming Nectar</p>
-          <h1>Audit Results</h1>
+          <p class="eyebrow">Gaming Nectar Intelligence</p>
+          <h1><%= competitorAnalysis ? "Competitor Analysis" : "Audit Results" %></h1>
         </div>
 
         <a class="back-link" href="/">Run another audit</a>
       </div>
 
+      <% if (competitorAnalysis) { %>
+        <section class="comparison-hero">
+          <div>
+            <p class="eyebrow">Your page</p>
+            <h2><%= competitorAnalysis.primaryScore %>/10</h2>
+            <p><%= competitorAnalysis.primaryUrl %></p>
+          </div>
+
+          <div>
+            <p class="eyebrow">Competitors analysed</p>
+            <h2><%= competitorAnalysis.competitors.length %></h2>
+            <p>Showing where competitors are stronger and where you outperform them.</p>
+          </div>
+        </section>
+
+        <% if (competitorAnalysis.opportunities.length) { %>
+          <section class="opportunity-panel">
+            <div class="section-heading">
+              <p class="eyebrow">Priority gaps</p>
+              <h2>Where competitors are stronger</h2>
+            </div>
+
+            <div class="opportunity-list">
+              <% competitorAnalysis.opportunities.forEach(function(item) { %>
+                <article>
+                  <span><%= formatCategory(item.category) %></span>
+                  <p><%= item.message %></p>
+                  <small><%= item.competitorUrl %></small>
+                </article>
+              <% }) %>
+            </div>
+          </section>
+        <% } %>
+
+        <section class="comparison-table-wrap">
+          <div class="section-heading">
+            <p class="eyebrow">Head-to-head</p>
+            <h2>Competitor score differences</h2>
+          </div>
+
+          <div class="comparison-table">
+            <% competitorAnalysis.competitors.forEach(function(item) { %>
+              <article class="comparison-row">
+                <div>
+                  <p class="url"><%= item.url %></p>
+                  <h3><%= item.title || "Untitled competitor page" %></h3>
+                  <strong class="<%= item.overallDifference > 0 ? "negative" : "positive" %>">
+                    <%= item.overallDifference > 0 ? "+" : "" %><%= item.overallDifference %> vs your page
+                  </strong>
+                </div>
+
+                <div class="mini-category-grid">
+                  <% Object.entries(item.categoryDiffs).forEach(function(entry) { %>
+                    <div>
+                      <span><%= formatCategory(entry[0]) %></span>
+                      <strong class="<%= entry[1] > 0 ? "negative" : entry[1] < 0 ? "positive" : "" %>">
+                        <%= entry[1] > 0 ? "+" : "" %><%= entry[1] %>
+                      </strong>
+                    </div>
+                  <% }) %>
+                </div>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
+
       <section class="results-list">
-        <% results.forEach(function(result) { %>
+        <% results.forEach(function(result, resultIndex) { %>
           <article class="result-card">
             <div class="result-header">
               <div>
+                <p class="eyebrow"><%= competitorAnalysis && resultIndex === 0 ? "Your page" : competitorAnalysis ? "Competitor page" : "Audited page" %></p>
                 <p class="url"><%= result.url %></p>
                 <h2><%= result.title || "Untitled page" %></h2>
+
                 <% if (result.metaDescription) { %>
                   <p class="meta-description"><%= result.metaDescription %></p>
                 <% } %>
               </div>
 
-              <div class="score-box">
+              <div class="score-box <%= scoreClass(result.overallScore) %>">
                 <span class="score"><%= result.overallScore %></span>
                 <span class="score-total">/10</span>
-                <span class="score-label">
-                  <% if (result.overallScore >= 8) { %>
-                    Strong
-                  <% } else if (result.overallScore >= 6) { %>
-                    Needs work
-                  <% } else { %>
-                    Priority fix
-                  <% } %>
-                </span>
+                <span class="score-label"><%= scoreLabel(result.overallScore) %></span>
               </div>
             </div>
 
-            <div class="meta-grid">
-              <div>
-                <span>Status</span>
-                <strong><%= result.status || "Unknown" %></strong>
-              </div>
-
-              <div>
-                <span>Load time</span>
-                <strong><%= result.loadMs %>ms</strong>
-              </div>
-
-              <div>
-                <span>Issues</span>
-                <strong><%= result.issues.length %></strong>
-              </div>
+            <div class="insight-strip">
+              <% result.insights.forEach(function(insight) { %>
+                <div>
+                  <span><%= insight.label %></span>
+                  <strong><%= insight.value %></strong>
+                  <small><%= insight.note %></small>
+                </div>
+              <% }) %>
             </div>
 
-            <h3>Category scores</h3>
+            <div class="section-heading compact">
+              <p class="eyebrow">Score breakdown</p>
+              <h3>Category scores</h3>
+            </div>
 
             <div class="category-grid">
               <% Object.entries(result.categoryScores).forEach(function(entry) { %>
                 <div class="category-item">
-                  <span><%= formatCategory(entry[0]) %></span>
+                  <div>
+                    <span><%= formatCategory(entry[0]) %></span>
+                    <div class="score-bar">
+                      <i style="width: <%= entry[1] * 10 %>%"></i>
+                    </div>
+                  </div>
                   <strong><%= entry[1] %>/10</strong>
                 </div>
               <% }) %>
             </div>
 
-            <details class="details">
-              <summary>View issue breakdown</summary>
+            <% if (result.wins.length) { %>
+              <details class="details" open>
+                <summary>What looks good</summary>
+
+                <ul class="good-list">
+                  <% result.wins.forEach(function(win) { %>
+                    <li>
+                      <span><%= formatCategory(win.category) %></span>
+                      <p><%= win.message %></p>
+                    </li>
+                  <% }) %>
+                </ul>
+              </details>
+            <% } %>
+
+            <details class="details" open>
+              <summary>What needs improving</summary>
 
               <% if (result.issues.length) { %>
                 <ul class="issue-list">
                   <% result.issues.forEach(function(issue) { %>
-                    <li>
-                      <span class="issue-category"><%= formatCategory(issue.category) %></span>
-                      <span class="issue-message"><%= issue.message %></span>
-                      <span class="issue-severity"><%= issue.severity %></span>
+                    <li class="severity-<%= issue.severity %>">
+                      <div>
+                        <span class="issue-category"><%= formatCategory(issue.category) %></span>
+                        <strong><%= issue.severity %></strong>
+                      </div>
+
+                      <p class="issue-message"><%= issue.message %></p>
+
+                      <% if (issue.recommendation) { %>
+                        <p class="issue-recommendation"><%= issue.recommendation %></p>
+                      <% } %>
                     </li>
                   <% }) %>
                 </ul>
@@ -91,15 +175,33 @@
               <% } %>
             </details>
 
-            <% if (result.recommendations && result.recommendations.length) { %>
+            <% if (result.h1s.length || result.h2s.length) { %>
               <details class="details">
-                <summary>View recommendations</summary>
+                <summary>Heading structure</summary>
 
-                <ul class="recommendation-list">
-                  <% result.recommendations.forEach(function(recommendation) { %>
-                    <li><%= recommendation %></li>
-                  <% }) %>
-                </ul>
+                <div class="heading-preview">
+                  <div>
+                    <h4>H1s</h4>
+                    <% if (result.h1s.length) { %>
+                      <% result.h1s.forEach(function(h) { %>
+                        <p><%= h %></p>
+                      <% }) %>
+                    <% } else { %>
+                      <p>No H1s found.</p>
+                    <% } %>
+                  </div>
+
+                  <div>
+                    <h4>H2s</h4>
+                    <% if (result.h2s.length) { %>
+                      <% result.h2s.forEach(function(h) { %>
+                        <p><%= h %></p>
+                      <% }) %>
+                    <% } else { %>
+                      <p>No H2s found.</p>
+                    <% } %>
+                  </div>
+                </div>
               </details>
             <% } %>
           </article>
@@ -117,5 +219,17 @@ function formatCategory(category) {
     .replace(/\b\w/g, function(letter) {
       return letter.toUpperCase();
     });
+}
+
+function scoreLabel(score) {
+  if (score >= 8) return "Strong";
+  if (score >= 6) return "Needs work";
+  return "Priority fix";
+}
+
+function scoreClass(score) {
+  if (score >= 8) return "score-strong";
+  if (score >= 6) return "score-mid";
+  return "score-low";
 }
 %>

@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { auditMultipleUrls } from "./services/audit/crawler.js";
+import { auditMultipleUrls, auditWithCompetitors } from "./services/audit/crawler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +24,40 @@ app.get("/", (req, res) => {
 });
 
 app.post("/audit", async (req, res) => {
+  const mode = req.body.mode || "standard";
+
+  if (mode === "competitor") {
+    const primaryUrl = String(req.body.primaryUrl || "").trim();
+
+    const competitorUrls = String(req.body.competitorUrls || "")
+      .split("\n")
+      .map((url) => url.trim())
+      .filter(Boolean)
+      .slice(0, 5);
+
+    if (!primaryUrl) {
+      return res.render("index", {
+        title: "Gaming Nectar Site Quality Auditor",
+        error: "Please enter your page URL before running competitor analysis."
+      });
+    }
+
+    if (!competitorUrls.length) {
+      return res.render("index", {
+        title: "Gaming Nectar Site Quality Auditor",
+        error: "Please enter at least one competitor URL."
+      });
+    }
+
+    const competitorAnalysis = await auditWithCompetitors(primaryUrl, competitorUrls);
+
+    return res.render("results", {
+      title: "Competitor Audit Results",
+      results: [competitorAnalysis.primary, ...competitorAnalysis.competitors],
+      competitorAnalysis
+    });
+  }
+
   const rawUrls = req.body.urls || "";
 
   const urls = rawUrls
@@ -43,7 +77,8 @@ app.post("/audit", async (req, res) => {
 
   res.render("results", {
     title: "Audit Results",
-    results
+    results,
+    competitorAnalysis: null
   });
 });
 

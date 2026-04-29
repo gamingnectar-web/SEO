@@ -10,49 +10,113 @@
   <body>
     <main class="page">
       <section class="hero">
-        <p class="eyebrow">Gaming Nectar</p>
-        <h1>Site Quality Auditor</h1>
-        <p>
-          Score pages out of 10 across SEO, GEO, functionality, accessibility,
-          performance, conversion, trust, and merchandising.
-        </p>
+        <div class="hero-copy">
+          <p class="eyebrow">Gaming Nectar Intelligence</p>
+          <h1>SEO, GEO & Conversion Quality Auditor</h1>
+          <p>
+            Score pages out of 10, expose granular weaknesses, identify what is working,
+            and compare your pages against competitors.
+          </p>
+
+          <div class="hero-pills">
+            <span>SEO</span>
+            <span>GEO</span>
+            <span>UX</span>
+            <span>Conversion</span>
+            <span>Trust</span>
+            <span>Merchandising</span>
+          </div>
+        </div>
+
+        <div class="hero-panel">
+          <span class="panel-number">9</span>
+          <span class="panel-label">Audit categories</span>
+          <p>Built to expand into Google Search Console, MongoDB history, Shopify data, and AI search readiness.</p>
+        </div>
       </section>
 
-      <section class="card">
-        <h2>Run an audit</h2>
+      <% if (typeof error !== "undefined" && error) { %>
+        <div class="error"><%= error %></div>
+      <% } %>
 
-        <% if (typeof error !== "undefined" && error) { %>
-          <div class="error"><%= error %></div>
-        <% } %>
+      <section class="tool-grid">
+        <article class="card">
+          <div class="card-heading">
+            <p class="eyebrow">Standard audit</p>
+            <h2>Audit your pages</h2>
+            <p>
+              Paste up to 10 URLs. The app checks structure, SEO, GEO, performance,
+              trust, conversion, and merchandising signals.
+            </p>
+          </div>
 
-        <form method="POST" action="/audit">
-          <label for="urls">Enter one URL per line</label>
+          <form method="POST" action="/audit">
+            <input type="hidden" name="mode" value="standard" />
 
-          <textarea
-            id="urls"
-            name="urls"
-            rows="8"
-            placeholder="https://www.gamingnectar.com/&#10;https://www.gamingnectar.com/products/example"
-          ></textarea>
+            <label for="urls">Your URLs</label>
 
-          <button type="submit">Run audit</button>
-        </form>
+            <textarea
+              id="urls"
+              name="urls"
+              rows="8"
+              placeholder="https://www.gamingnectar.com/&#10;https://www.gamingnectar.com/products/example"
+            ></textarea>
+
+            <button type="submit">Run page audit</button>
+          </form>
+        </article>
+
+        <article class="card card-dark">
+          <div class="card-heading">
+            <p class="eyebrow">Competitor analysis</p>
+            <h2>Compare against competitors</h2>
+            <p>
+              Add one Gaming Nectar page and up to five competitor URLs to see where
+              they are stronger and what you should improve first.
+            </p>
+          </div>
+
+          <form method="POST" action="/audit">
+            <input type="hidden" name="mode" value="competitor" />
+
+            <label for="primaryUrl">Your page URL</label>
+            <input
+              id="primaryUrl"
+              name="primaryUrl"
+              type="text"
+              placeholder="https://www.gamingnectar.com/products/example"
+            />
+
+            <label for="competitorUrls">Competitor URLs, one per line</label>
+            <textarea
+              id="competitorUrls"
+              name="competitorUrls"
+              rows="6"
+              placeholder="https://competitor.com/product-example&#10;https://anothercompetitor.com/product-example"
+            ></textarea>
+
+            <button type="submit">Run competitor analysis</button>
+          </form>
+        </article>
       </section>
 
-      <section class="info-grid">
+      <section class="feature-grid">
         <div>
-          <h3>SEO</h3>
-          <p>Titles, descriptions, H1s, canonicals and basic indexability signals.</p>
+          <span class="feature-icon">01</span>
+          <h3>Technical & SEO</h3>
+          <p>Status codes, titles, descriptions, H1s, canonicals, links, schema and structure.</p>
         </div>
 
         <div>
-          <h3>GEO</h3>
-          <p>Structured data, answer-style content, entity clarity and AI search readiness.</p>
+          <span class="feature-icon">02</span>
+          <h3>GEO readiness</h3>
+          <p>Answer-style content, structured data, entity clarity, FAQs and comparison signals.</p>
         </div>
 
         <div>
-          <h3>Conversion</h3>
-          <p>CTA visibility, pricing signals, trust markers and product merchandising.</p>
+          <span class="feature-icon">03</span>
+          <h3>Commercial quality</h3>
+          <p>CTAs, pricing clarity, trust signals, reviews, bundles, benefits and merchandising depth.</p>
         </div>
       </section>
     </main>
