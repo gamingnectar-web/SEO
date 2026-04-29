@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "ejs": "^3.1.10",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "mongodb": "^6.18.0"
   },
   "engines": {
     "node": ">=18"

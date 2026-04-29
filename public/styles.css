@@ -920,3 +920,51 @@ summary {
     flex-direction: column;
   }
 }
+
+.recent-runs {
+  margin-top: 24px;
+}
+
+.recent-run-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.recent-run-card {
+  display: block;
+  background: rgba(255, 253, 248, 0.94);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 18px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 18px 70px rgba(31, 24, 11, 0.08);
+}
+
+.recent-run-card div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.recent-run-card span {
+  background: #111;
+  color: var(--gold);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.recent-run-card strong {
+  font-size: 28px;
+  letter-spacing: -0.06em;
+}
+
+.recent-run-card p,
+.recent-run-card small {
+  color: var(--muted);
+}

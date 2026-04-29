@@ -34,7 +34,8 @@
           <span class="panel-number">10</span>
           <span class="panel-label">Audit areas</span>
           <p>
-            Built to become a proper MongoDB-backed monitoring dashboard next.
+            MongoDB-backed audit history, saved reports, full-site crawling and
+            competitor analysis.
           </p>
         </div>
       </section>
@@ -137,6 +138,33 @@
           </form>
         </article>
       </section>
+
+      <% if (recentRuns && recentRuns.length) { %>
+        <section class="recent-runs">
+          <div class="section-heading">
+            <p class="eyebrow">History</p>
+            <h2>Recent audit runs</h2>
+          </div>
+
+          <div class="recent-run-list">
+            <% recentRuns.forEach(function(run) { %>
+              <a class="recent-run-card" href="/audit/<%= run._id %>">
+                <div>
+                  <span><%= run.type %></span>
+                  <strong><%= run.summary?.averageScore || 0 %>/10</strong>
+                </div>
+
+                <p>
+                  <%= run.summary?.pageCount || 0 %> pages ·
+                  <%= run.summary?.issueCount || 0 %> issues
+                </p>
+
+                <small><%= new Date(run.createdAt).toLocaleString("en-GB") %></small>
+              </a>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
     </main>
   </body>
 </html>
