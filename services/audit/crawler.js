@@ -1,4 +1,8 @@
-import { calculatePageAudit, compareAudits, summariseSiteAudit } from "./scoring.js";
+import {
+  calculatePageAudit,
+  compareAudits,
+  summariseSiteAudit
+} from "./scoring.js";
 
 export async function auditMultipleUrls(urls) {
   const results = [];
@@ -64,7 +68,8 @@ export async function auditSingleUrl(url) {
       headers: {
         "User-Agent":
           "GamingNectarSiteQualityAuditor/3.0 (+https://gamingnectar.com)",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
       }
     });
 
@@ -76,7 +81,9 @@ export async function auditSingleUrl(url) {
       return failedAudit(
         normalisedUrl,
         Date.now() - startedAt,
-        `URL did not return HTML content. Content-Type: ${contentType || "unknown"}.`
+        `URL did not return HTML content. Content-Type: ${
+          contentType || "unknown"
+        }.`
       );
     }
 
@@ -127,6 +134,7 @@ async function discoverUrlsFromSitemap(siteUrl, maxUrls) {
       if (!response.ok) return;
 
       const xml = await response.text();
+
       const locs = [...xml.matchAll(/<loc>(.*?)<\/loc>/gi)].map((m) =>
         decodeXml(m[1].trim())
       );
@@ -163,10 +171,20 @@ function failedAudit(url, loadMs, message) {
     metaDescription: "",
     h1s: [],
     h2s: [],
+    h3s: [],
     wordCount: 0,
+    scriptCount: 0,
+    styleCount: 0,
     schemaTypes: [],
-    imageStats: { total: 0, missingAlt: 0 },
-    links: { total: 0, internalCount: 0, externalCount: 0 },
+    imageStats: {
+      total: 0,
+      missingAlt: 0
+    },
+    links: {
+      total: 0,
+      internalCount: 0,
+      externalCount: 0
+    },
     overallScore: 0,
     categoryScores: emptyCategoryScores(),
     categoryDetails: emptyCategoryDetails(),

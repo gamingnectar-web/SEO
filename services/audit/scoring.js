@@ -49,11 +49,9 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
       evidence = ""
     } = config;
 
-    const statusLabel = passed ? "pass" : "fail";
-
     categoryDetails[category].push({
       name,
-      status: statusLabel,
+      status: passed ? "pass" : "fail",
       severity,
       message: passed ? passMessage : failMessage,
       recommendation,
@@ -87,7 +85,7 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
   }
 
   /**
-   * TECHNICAL
+   * Technical checks
    */
   check("technical", {
     name: "HTTP status",
@@ -148,7 +146,7 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
   });
 
   /**
-   * SEO
+   * SEO checks
    */
   check("seo", {
     name: "Title exists",
@@ -168,8 +166,7 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
     points: 0.7,
     passMessage: `Title length looks sensible at ${title.length} characters.`,
     failMessage: `Title length is ${title.length} characters, outside the preferred range.`,
-    recommendation:
-      "Aim for a useful, readable title around 25–65 characters.",
+    recommendation: "Aim for a useful, readable title around 25–65 characters.",
     evidence: title
   });
 
@@ -206,12 +203,11 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
       h1s.length === 0
         ? "Missing H1."
         : `Multiple H1s found: ${h1s.length}.`,
-    recommendation:
-      "Use one clear H1 that describes the main page topic."
+    recommendation: "Use one clear H1 that describes the main page topic."
   });
 
   /**
-   * CONTENT
+   * Content checks
    */
   check("content", {
     name: "Content depth",
@@ -257,7 +253,7 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
   });
 
   /**
-   * GEO — GENERATIVE ENGINE OPTIMISATION
+   * GEO checks
    */
   check("geo", {
     name: "JSON-LD structured data",
@@ -342,7 +338,7 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
   });
 
   /**
-   * LINKING
+   * Linking checks
    */
   check("linking", {
     name: "Internal links",
@@ -378,7 +374,7 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
   });
 
   /**
-   * ACCESSIBILITY
+   * Accessibility
    */
   check("accessibility", {
     name: "Image alt text",
@@ -403,7 +399,7 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
   });
 
   /**
-   * PERFORMANCE
+   * Performance
    */
   check("performance", {
     name: "Initial response speed",
@@ -434,26 +430,99 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
     points: 0.4,
     passMessage: `Stylesheet/style count is acceptable at ${styleCount}.`,
     failMessage: `High stylesheet/style count detected: ${styleCount}.`,
-    recommendation:
-      "Review duplicated app CSS and theme CSS."
+    recommendation: "Review duplicated app CSS and theme CSS."
   });
 
   /**
-   * CONVERSION, TRUST, MERCHANDISING
+   * Commercial checks
    */
-  commercialCheck("conversion", "Primary CTA", /add to cart|buy now|shop now|subscribe|checkout|get started|view product|choose option/i, text, 1.4);
-  commercialCheck("conversion", "Pricing clarity", /£|\$|€|price|sale|regular price|compare at|from £|from \$|from €/i, text, 0.8);
-  commercialCheck("conversion", "Value/offer signal", /limited|selling fast|popular|bestseller|offer|save|discount|bundle/i, text, 0.5);
+  commercialCheck(
+    "conversion",
+    "Primary CTA",
+    /add to cart|buy now|shop now|subscribe|checkout|get started|view product|choose option/i,
+    text,
+    1.4
+  );
 
-  commercialCheck("trust", "Reviews/social proof", /review|rated|stars|testimonial|customer/i, text, 0.7);
-  commercialCheck("trust", "Delivery/returns clarity", /shipping|delivery|dispatch|returns|refund/i, text, 0.7);
-  commercialCheck("trust", "Contact/help clarity", /contact|email|support|help/i, text, 0.5);
-  commercialCheck("trust", "Guarantee/security", /guarantee|secure|safe|trusted|money back/i, text, 0.5);
+  commercialCheck(
+    "conversion",
+    "Pricing clarity",
+    /£|\$|€|price|sale|regular price|compare at|from £|from \$|from €/i,
+    text,
+    0.8
+  );
 
-  commercialCheck("merchandising", "Variant clarity", /variant|flavour|flavor|size|pack|bundle|quantity/i, text, 0.7);
-  commercialCheck("merchandising", "Ingredient/nutrition clarity", /ingredient|nutrition|vitamin|mineral|caffeine|sugar|calorie/i, text, 0.7);
-  commercialCheck("merchandising", "Use-case clarity", /gaming|study|work|focus|energy|workout|daily|morning/i, text, 0.7);
-  commercialCheck("merchandising", "Benefit clarity", /benefit|supports|helps|clean energy|healthy energy|focus/i, text, 0.7);
+  commercialCheck(
+    "conversion",
+    "Value/offer signal",
+    /limited|selling fast|popular|bestseller|offer|save|discount|bundle/i,
+    text,
+    0.5
+  );
+
+  commercialCheck(
+    "trust",
+    "Reviews/social proof",
+    /review|rated|stars|testimonial|customer/i,
+    text,
+    0.7
+  );
+
+  commercialCheck(
+    "trust",
+    "Delivery/returns clarity",
+    /shipping|delivery|dispatch|returns|refund/i,
+    text,
+    0.7
+  );
+
+  commercialCheck(
+    "trust",
+    "Contact/help clarity",
+    /contact|email|support|help/i,
+    text,
+    0.5
+  );
+
+  commercialCheck(
+    "trust",
+    "Guarantee/security",
+    /guarantee|secure|safe|trusted|money back/i,
+    text,
+    0.5
+  );
+
+  commercialCheck(
+    "merchandising",
+    "Variant clarity",
+    /variant|flavour|flavor|size|pack|bundle|quantity/i,
+    text,
+    0.7
+  );
+
+  commercialCheck(
+    "merchandising",
+    "Ingredient/nutrition clarity",
+    /ingredient|nutrition|vitamin|mineral|caffeine|sugar|calorie/i,
+    text,
+    0.7
+  );
+
+  commercialCheck(
+    "merchandising",
+    "Use-case clarity",
+    /gaming|study|work|focus|energy|workout|daily|morning/i,
+    text,
+    0.7
+  );
+
+  commercialCheck(
+    "merchandising",
+    "Benefit clarity",
+    /benefit|supports|helps|clean energy|healthy energy|focus/i,
+    text,
+    0.7
+  );
 
   function commercialCheck(category, name, regex, inputText, points) {
     check(category, {
@@ -547,9 +616,9 @@ export function summariseSiteAudit(results) {
   );
 
   const issueCounts = {};
+
   allIssues.forEach((issue) => {
-    const key = issue.category;
-    issueCounts[key] = (issueCounts[key] || 0) + 1;
+    issueCounts[issue.category] = (issueCounts[issue.category] || 0) + 1;
   });
 
   const weakestPages = [...validResults]
@@ -604,7 +673,9 @@ export function compareAudits(primary, competitors = []) {
       if (score - ownScore >= 1) {
         opportunities.push({
           category,
-          message: `Competitor is stronger in ${formatCategory(category)} by ${round1(score - ownScore)} points.`,
+          message: `Competitor is stronger in ${formatCategory(
+            category
+          )} by ${round1(score - ownScore)} points.`,
           competitorUrl: competitor.url
         });
       }
@@ -621,7 +692,9 @@ export function compareAudits(primary, competitors = []) {
     if (competitor.schemaTypes.length > primary.schemaTypes.length) {
       opportunities.push({
         category: "geo",
-        message: `Competitor has more detected schema types: ${competitor.schemaTypes.join(", ")}.`,
+        message: `Competitor has more detected schema types: ${competitor.schemaTypes.join(
+          ", "
+        )}.`,
         competitorUrl: competitor.url
       });
     }
@@ -670,6 +743,7 @@ function extractHeadings(html, tag) {
 
 function analyseImages(html) {
   const imageTags = html.match(/<img\b[^>]*>/gi) || [];
+
   const missingAlt = imageTags.filter(
     (img) => !/\salt=["'][^"']*["']/i.test(img)
   ).length;
@@ -684,6 +758,7 @@ function analyseLinks(html, pageUrl) {
   const linkMatches = [
     ...html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi)
   ];
+
   const origin = getOrigin(pageUrl);
 
   let internalCount = 0;
