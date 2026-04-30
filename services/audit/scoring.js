@@ -1,3 +1,10 @@
+import {
+  analyseSchemaDeep,
+  buildSchemaConsistencyChecks
+} from "./schema-deep-analysis.js";
+
+import { buildGeoAeoChecks } from "./geo-aeo-analysis.js";
+
 const CATEGORIES = [
   "technical",
   "seo",
