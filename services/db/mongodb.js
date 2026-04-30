@@ -24,14 +24,31 @@ export async function getCollections() {
   const db = await getDb();
 
   return {
-    auditRuns: db.collection("auditRuns")
+    auditRuns: db.collection("auditRuns"),
+    auditTodos: db.collection("auditTodos")
   };
 }
 
 export async function ensureIndexes() {
-  const { auditRuns } = await getCollections();
+  const { auditRuns, auditTodos } = await getCollections();
 
   await auditRuns.createIndex({ createdAt: -1 });
   await auditRuns.createIndex({ type: 1, createdAt: -1 });
   await auditRuns.createIndex({ "summary.averageScore": 1 });
+
+  await auditTodos.createIndex({ auditRunId: 1, createdAt: -1 });
+  await auditTodos.createIndex({ status: 1, updatedAt: -1 });
+  await auditTodos.createIndex({ pageUrl: 1, category: 1, checkName: 1 });
+
+  await auditTodos.createIndex(
+    {
+      auditRunId: 1,
+      pageUrl: 1,
+      category: 1,
+      checkName: 1
+    },
+    {
+      unique: true
+    }
+  );
 }
