@@ -20,6 +20,16 @@
         <a class="back-link" href="/">Run another audit</a>
       </div>
 
+      <% if (auditRun) { %>
+        <section class="saved-run-banner">
+          <span>Saved audit</span>
+          <p>
+            This report is saved in MongoDB. Run ID:
+            <strong><%= auditRun._id %></strong>
+          </p>
+        </section>
+      <% } %>
+
       <% if (siteAudit) { %>
         <section class="dashboard-summary">
           <div class="summary-card hero-score">
@@ -58,15 +68,38 @@
         </section>
       <% } %>
 
+      <% if (todoSummary) { %>
+        <section class="todo-summary-strip">
+          <div>
+            <span>Total to-dos</span>
+            <strong><%= todoSummary.total %></strong>
+          </div>
+          <div>
+            <span>Open</span>
+            <strong><%= todoSummary.open %></strong>
+          </div>
+          <div>
+            <span>In progress</span>
+            <strong><%= todoSummary.inProgress %></strong>
+          </div>
+          <div>
+            <span>Done</span>
+            <strong><%= todoSummary.done %></strong>
+          </div>
+        </section>
+      <% } %>
+
       <nav class="tabs" data-tabs>
         <button class="active" data-tab-button="overview">Overview</button>
-        <button data-tab-button="geo">GEO</button>
+        <button data-tab-button="geo">GEO / AEO</button>
         <button data-tab-button="seo">SEO</button>
         <button data-tab-button="technical">Technical</button>
         <button data-tab-button="linking">Linking</button>
         <button data-tab-button="content">Content</button>
         <button data-tab-button="commercial">Commercial</button>
         <button data-tab-button="pages">Pages</button>
+        <button data-tab-button="todos">To-dos</button>
+
         <% if (competitorAnalysis) { %>
           <button data-tab-button="competitors">Competitors</button>
         <% } %>
@@ -126,9 +159,10 @@
         <section class="tab-panel" data-tab-panel="<%= category %>">
           <div class="section-heading">
             <p class="eyebrow">Deep dive</p>
-            <h2><%= formatCategory(category) %> analysis</h2>
+            <h2><%= category === "geo" ? "GEO / AEO / Schema" : formatCategory(category) %> analysis</h2>
           </div>
-                    <% const improvementPlan = siteAudit?.improvementPlans?.[category] || []; %>
+
+          <% const improvementPlan = siteAudit?.improvementPlans?.[category] || []; %>
 
           <% if (improvementPlan.length) { %>
             <section class="improvement-panel">
@@ -197,22 +231,48 @@
                     <p class="url"><%= result.url %></p>
                     <h3><%= result.title || "Untitled page" %></h3>
                   </div>
+
                   <strong><%= result.categoryScores[category] %>/10</strong>
                 </div>
 
                 <div class="checks-list">
                   <% (result.categoryDetails[category] || []).forEach(function(check) { %>
-                    <div class="check-row check-<%= check.status %>">
+                    <% const context = getContext(category, check.name); %>
+                    <button
+                      type="button"
+                      class="check-row check-<%= check.status %>"
+                      data-open-check-modal
+                      data-audit-run-id="<%= auditRun ? auditRun._id : '' %>"
+                      data-return-to="<%= auditRun ? '/audit/' + auditRun._id : '/' %>"
+                      data-page-url="<%= result.url %>"
+                      data-page-title="<%= result.title || 'Untitled page' %>"
+                      data-category="<%= category %>"
+                      data-check-name="<%= check.name %>"
+                      data-status="<%= check.status %>"
+                      data-severity="<%= check.severity %>"
+                      data-message="<%= check.message %>"
+                      data-recommendation="<%= check.recommendation || '' %>"
+                      data-evidence="<%= check.evidence || '' %>"
+                      data-why="<%= check.why || context.why %>"
+                      data-how="<%= check.how || context.how %>"
+                      data-example="<%= check.example || context.example %>"
+                      data-business-impact="<%= check.businessImpact || '' %>"
+                      data-implementation-hint="<%= check.implementationHint || '' %>"
+                      data-expected-impact="<%= check.expectedImpact || '' %>"
+                      data-effort="<%= check.effort || '' %>"
+                    >
                       <div>
                         <strong><%= check.name %></strong>
                         <p><%= check.message %></p>
+
                         <% if (check.evidence) { %>
                           <small>Evidence: <%= check.evidence %></small>
                         <% } %>
                       </div>
 
-                      <span><%= check.status %></span>
-                    </div>
+                      <span class="check-status-pill"><%= check.status %></span>
+                      <span class="check-arrow">›</span>
+                    </button>
                   <% }) %>
                 </div>
               </article>
@@ -227,7 +287,7 @@
           <h2>Conversion, trust and merchandising</h2>
         </div>
 
-                <% const commercialPlans = [
+        <% const commercialPlans = [
           ...(siteAudit?.improvementPlans?.conversion || []),
           ...(siteAudit?.improvementPlans?.trust || []),
           ...(siteAudit?.improvementPlans?.merchandising || [])
@@ -286,18 +346,48 @@
                       <p class="url"><%= result.url %></p>
                       <h3><%= result.title || "Untitled page" %></h3>
                     </div>
+
                     <strong><%= result.categoryScores[category] %>/10</strong>
                   </div>
 
                   <div class="checks-list">
                     <% (result.categoryDetails[category] || []).forEach(function(check) { %>
-                      <div class="check-row check-<%= check.status %>">
+                      <% const context = getContext(category, check.name); %>
+                      <button
+                        type="button"
+                        class="check-row check-<%= check.status %>"
+                        data-open-check-modal
+                        data-audit-run-id="<%= auditRun ? auditRun._id : '' %>"
+                        data-return-to="<%= auditRun ? '/audit/' + auditRun._id : '/' %>"
+                        data-page-url="<%= result.url %>"
+                        data-page-title="<%= result.title || 'Untitled page' %>"
+                        data-category="<%= category %>"
+                        data-check-name="<%= check.name %>"
+                        data-status="<%= check.status %>"
+                        data-severity="<%= check.severity %>"
+                        data-message="<%= check.message %>"
+                        data-recommendation="<%= check.recommendation || '' %>"
+                        data-evidence="<%= check.evidence || '' %>"
+                        data-why="<%= check.why || context.why %>"
+                        data-how="<%= check.how || context.how %>"
+                        data-example="<%= check.example || context.example %>"
+                        data-business-impact="<%= check.businessImpact || '' %>"
+                        data-implementation-hint="<%= check.implementationHint || '' %>"
+                        data-expected-impact="<%= check.expectedImpact || '' %>"
+                        data-effort="<%= check.effort || '' %>"
+                      >
                         <div>
                           <strong><%= check.name %></strong>
                           <p><%= check.message %></p>
+
+                          <% if (check.evidence) { %>
+                            <small>Evidence: <%= check.evidence %></small>
+                          <% } %>
                         </div>
-                        <span><%= check.status %></span>
-                      </div>
+
+                        <span class="check-status-pill"><%= check.status %></span>
+                        <span class="check-arrow">›</span>
+                      </button>
                     <% }) %>
                   </div>
                 </article>
@@ -314,7 +404,7 @@
         </div>
 
         <section class="results-list">
-          <% results.forEach(function(result, resultIndex) { %>
+          <% results.forEach(function(result) { %>
             <article class="result-card">
               <div class="result-header">
                 <div>
@@ -372,6 +462,91 @@
         </section>
       </section>
 
+      <section class="tab-panel" data-tab-panel="todos">
+        <div class="section-heading">
+          <p class="eyebrow">Action tracker</p>
+          <h2>Audit to-do list</h2>
+        </div>
+
+        <% if (todos && todos.length) { %>
+          <section class="todo-list">
+            <% todos.forEach(function(todo) { %>
+              <article class="todo-card todo-status-<%= todo.status %>">
+                <div class="todo-card-head">
+                  <div>
+                    <span><%= formatCategory(todo.category) %></span>
+                    <h3><%= todo.checkName %></h3>
+                    <p><%= todo.pageTitle %></p>
+                    <small><%= todo.pageUrl %></small>
+                  </div>
+
+                  <strong><%= formatStatus(todo.status) %></strong>
+                </div>
+
+                <div class="todo-context">
+                  <div>
+                    <span>Issue</span>
+                    <p><%= todo.message %></p>
+                  </div>
+
+                  <div>
+                    <span>Recommendation</span>
+                    <p><%= todo.recommendation || "No recommendation saved." %></p>
+                  </div>
+
+                  <div>
+                    <span>Why it matters</span>
+                    <p><%= todo.why || "This improvement helps make the page clearer and stronger." %></p>
+                  </div>
+
+                  <% if (todo.businessImpact) { %>
+                    <div>
+                      <span>Business impact</span>
+                      <p><%= todo.businessImpact %></p>
+                    </div>
+                  <% } %>
+
+                  <% if (todo.implementationHint) { %>
+                    <div>
+                      <span>Implementation hint</span>
+                      <p><%= todo.implementationHint %></p>
+                    </div>
+                  <% } %>
+
+                  <% if (todo.expectedImpact || todo.effort) { %>
+                    <div>
+                      <span>Impact / Effort</span>
+                      <p>
+                        <%= todo.expectedImpact ? "Impact: " + todo.expectedImpact : "" %>
+                        <%= todo.expectedImpact && todo.effort ? " · " : "" %>
+                        <%= todo.effort ? "Effort: " + todo.effort : "" %>
+                      </p>
+                    </div>
+                  <% } %>
+                </div>
+
+                <form method="POST" action="/todos/<%= todo._id %>/status" class="todo-status-form">
+                  <input type="hidden" name="returnTo" value="<%= auditRun ? '/audit/' + auditRun._id : '/' %>" />
+
+                  <button name="status" value="open" type="submit">Open</button>
+                  <button name="status" value="in_progress" type="submit">In progress</button>
+                  <button name="status" value="done" type="submit">Done</button>
+                  <button name="status" value="ignored" type="submit">Ignore</button>
+                </form>
+              </article>
+            <% }) %>
+          </section>
+        <% } else { %>
+          <section class="panel">
+            <h3>No to-dos yet</h3>
+            <p>
+              Open any SEO, GEO, Technical, Linking, Content or Commercial check,
+              then click “Add to to-do list”.
+            </p>
+          </section>
+        <% } %>
+      </section>
+
       <% if (competitorAnalysis) { %>
         <section class="tab-panel" data-tab-panel="competitors">
           <div class="section-heading">
@@ -379,18 +554,107 @@
             <h2>Where competitors are stronger</h2>
           </div>
 
-          <div class="opportunity-list">
-            <% competitorAnalysis.comparison.opportunities.forEach(function(item) { %>
-              <article>
-                <span><%= formatCategory(item.category) %></span>
-                <p><%= item.message %></p>
-                <small><%= item.competitorUrl %></small>
-              </article>
-            <% }) %>
-          </div>
+          <% if (competitorAnalysis.comparison.opportunities.length) { %>
+            <div class="opportunity-list">
+              <% competitorAnalysis.comparison.opportunities.forEach(function(item) { %>
+                <article>
+                  <span><%= formatCategory(item.category) %></span>
+                  <p><%= item.message %></p>
+                  <small><%= item.competitorUrl %></small>
+                </article>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <section class="panel">
+              <h3>No major competitor gaps found</h3>
+              <p>Your page is not showing major weaknesses against the competitors entered.</p>
+            </section>
+          <% } %>
         </section>
       <% } %>
     </main>
+
+    <div class="modal-backdrop" data-check-modal hidden>
+      <section class="check-modal" role="dialog" aria-modal="true">
+        <button class="modal-close" type="button" data-close-check-modal>×</button>
+
+        <div class="modal-top">
+          <div>
+            <p class="eyebrow" data-modal-category>Category</p>
+            <h2 data-modal-check-name>Check name</h2>
+            <p data-modal-page-title></p>
+            <small data-modal-page-url></small>
+          </div>
+
+          <span class="modal-status" data-modal-status>Status</span>
+        </div>
+
+        <div class="modal-grid">
+          <div>
+            <span>What we found</span>
+            <p data-modal-message></p>
+            <small data-modal-evidence></small>
+          </div>
+
+          <div>
+            <span>Why it matters</span>
+            <p data-modal-why></p>
+          </div>
+
+          <div>
+            <span>How to improve</span>
+            <p data-modal-how></p>
+          </div>
+
+          <div>
+            <span>Example</span>
+            <p data-modal-example></p>
+          </div>
+
+          <div data-modal-business-impact-block hidden>
+            <span>Business impact</span>
+            <p data-modal-business-impact></p>
+          </div>
+
+          <div data-modal-implementation-hint-block hidden>
+            <span>Implementation hint</span>
+            <p data-modal-implementation-hint></p>
+          </div>
+
+          <div data-modal-expected-impact-block hidden>
+            <span>Expected impact</span>
+            <p data-modal-expected-impact></p>
+          </div>
+
+          <div data-modal-effort-block hidden>
+            <span>Effort</span>
+            <p data-modal-effort></p>
+          </div>
+        </div>
+
+        <form method="POST" action="/todos" class="modal-todo-form">
+          <input type="hidden" name="auditRunId" data-field-audit-run-id />
+          <input type="hidden" name="returnTo" data-field-return-to />
+          <input type="hidden" name="pageUrl" data-field-page-url />
+          <input type="hidden" name="pageTitle" data-field-page-title />
+          <input type="hidden" name="category" data-field-category />
+          <input type="hidden" name="checkName" data-field-check-name />
+          <input type="hidden" name="severity" data-field-severity />
+          <input type="hidden" name="message" data-field-message />
+          <input type="hidden" name="recommendation" data-field-recommendation />
+          <input type="hidden" name="evidence" data-field-evidence />
+          <input type="hidden" name="why" data-field-why />
+          <input type="hidden" name="how" data-field-how />
+          <input type="hidden" name="example" data-field-example />
+          <input type="hidden" name="businessImpact" data-field-business-impact />
+          <input type="hidden" name="implementationHint" data-field-implementation-hint />
+          <input type="hidden" name="expectedImpact" data-field-expected-impact />
+          <input type="hidden" name="effort" data-field-effort />
+
+          <button type="submit">Add to to-do list</button>
+        </form>
+      </section>
+    </div>
 
     <script src="/app.js"></script>
   </body>
@@ -398,12 +662,23 @@
 
 <%
 function formatCategory(category) {
-  return category
+  return String(category || "")
     .split("_")
     .join(" ")
     .replace(/\b\w/g, function(letter) {
       return letter.toUpperCase();
     });
+}
+
+function formatStatus(status) {
+  const labels = {
+    open: "Open",
+    in_progress: "In progress",
+    done: "Done",
+    ignored: "Ignored"
+  };
+
+  return labels[status] || status;
 }
 
 function scoreLabel(score) {
@@ -436,5 +711,279 @@ function averageCategories(results) {
   });
 
   return averages;
+}
+
+function getContext(category, checkName) {
+  const contexts = {
+    geo: {
+      "JSON-LD structured data": {
+        why: "Structured data helps search engines and AI systems understand the page as a machine-readable entity.",
+        how: "Add valid JSON-LD schema such as Product, Organization, FAQPage, BreadcrumbList, Article or CollectionPage where relevant.",
+        example: "A product page should expose product name, description, image, price, availability, brand and reviews where available."
+      },
+      "Schema type clarity": {
+        why: "If schema exists but the type is unclear, search and AI systems may not confidently classify the page.",
+        how: "Ensure every JSON-LD block includes a clear @type and validates cleanly.",
+        example: "Use @type Product for product pages and @type FAQPage for FAQ sections."
+      },
+      "JSON-LD validity": {
+        why: "Invalid JSON-LD may be ignored entirely by search engines and AI systems.",
+        how: "Fix JSON syntax errors and validate structured data before relying on it.",
+        example: "Use valid JSON-LD with correct commas, quotes, @context and @type fields."
+      },
+      "FAQ schema matches visible FAQ": {
+        why: "FAQ schema can be risky if the questions and answers are not visibly present on the page.",
+        how: "Make sure the same FAQ questions and answers used in JSON-LD are shown on the page. Remove FAQPage schema if the FAQs are hidden.",
+        example: "If schema includes 'Is Gaming Nectar sugar free?', that question should also be visible in an FAQ section."
+      },
+      "Product schema name matches visible product": {
+        why: "Product schema should describe the actual visible product. If it does not match, search and AI systems may distrust the data.",
+        how: "Use the same product name in Product schema as the visible product title, H1 and product copy.",
+        example: "If the page title is 'Gaming Nectar Variety Pack', the Product schema name should also refer to 'Gaming Nectar Variety Pack'."
+      },
+      "Offer schema matches visible pricing": {
+        why: "Price data in schema should reflect what users can actually see. Hidden or mismatched offer data can reduce trust.",
+        how: "Make sure product price, sale price and currency are visible near the product CTA.",
+        example: "If schema exposes £24.99, the page should visibly show £24.99 near the Add to Cart button."
+      },
+      "Availability schema matches visible stock status": {
+        why: "Availability data should match what users see. Inconsistent stock status can confuse search engines and customers.",
+        how: "Show clear in-stock, sold-out, preorder or unavailable messaging on product pages.",
+        example: "If schema says InStock, the page should not appear sold out."
+      },
+      "Review schema matches visible reviews": {
+        why: "Review/rating schema should only be used when reviews or ratings are visible to users on the page.",
+        how: "Display the rating, review count or customer reviews if Review or AggregateRating schema is present.",
+        example: "If schema says 4.8 stars from 120 reviews, users should be able to see that review information."
+      },
+      "Breadcrumb schema matches visible navigation": {
+        why: "Breadcrumb schema should reflect a real navigational hierarchy.",
+        how: "Show breadcrumbs or ensure the schema matches clear visible navigation and page hierarchy.",
+        example: "Home > Energy Drinks > Variety Pack"
+      },
+      "Organization schema matches visible brand": {
+        why: "Organization schema should reinforce a clear brand/entity identity.",
+        how: "Make the brand name and brand/entity information visible on important pages.",
+        example: "Gaming Nectar should be clearly visible as the brand, with supporting About, Contact, logo or social proof signals."
+      },
+      "Answer extraction readiness": {
+        why: "AEO and GEO rely on clear, extractable answers. Marketing copy alone can be harder for AI systems to use.",
+        how: "Add concise answer blocks using natural questions and direct answers.",
+        example: "What is Gaming Nectar? Gaming Nectar is a cleaner energy drink designed for focus, gaming, work and busy days."
+      },
+      "Entity definition clarity": {
+        why: "AI systems need to understand the brand, product, category, audience and differentiators.",
+        how: "Clearly state what the product is, who it is for, what category it belongs to and why it is different.",
+        example: "Gaming Nectar is a healthier energy drink for gamers, creators and busy people who want cleaner energy and focus."
+      },
+      "Comparison and alternative coverage": {
+        why: "AI answers often compare options. Pages with comparison context are easier to recommend.",
+        how: "Add comparison sections against coffee, standard energy drinks, sugary drinks, powdered energy products or competitors.",
+        example: "Gaming Nectar vs traditional energy drinks: lower sugar, added vitamins/minerals, cleaner energy positioning."
+      },
+      "Buyer objection coverage": {
+        why: "Objection handling helps both users and AI systems understand whether the product is a good fit.",
+        how: "Answer concerns around caffeine, sugar, calories, delivery, returns, subscriptions, taste and daily use.",
+        example: "How much caffeine is in Gaming Nectar? Is it suitable for daily use? How long does delivery take?"
+      },
+      "Source-of-truth completeness": {
+        why: "AI systems prefer clear, consistent factual information. Users also need these signals to trust and buy.",
+        how: "Make ingredients, nutrition, shipping, returns, contact, guarantee, reviews and about information easy to find.",
+        example: "A product page should link to or show ingredients, nutrition, reviews, shipping and returns."
+      },
+      "Summary block readiness": {
+        why: "Summary blocks make pages easier for users and AI systems to understand quickly.",
+        how: "Add a short summary near the top of key pages explaining what the page/product is, who it helps and why it matters.",
+        example: "Gaming Nectar gives cleaner energy for focus, gaming and busy days, with vitamins, minerals and lower sugar than typical energy drinks."
+      },
+      "Experience and proof signals": {
+        why: "AI and users both need evidence to trust claims. Proof helps you compete against stronger brands.",
+        how: "Add customer reviews, ratings, testimonials, usage examples, guarantees or other proof points.",
+        example: "Rated 4.8/5 by customers, with review snippets explaining taste, focus and energy benefits."
+      },
+      "Product expansion readiness": {
+        why: "As the business grows, search and AI systems need to understand the product ecosystem, not just one page.",
+        how: "Add collection descriptions, related products, bundles, flavour explanations and internal links between products.",
+        example: "Create clear collection copy for energy drinks, variety packs, bestsellers and new product launches."
+      }
+    },
+    seo: {
+      "Title exists": {
+        why: "The title tag is one of the strongest page-level SEO signals.",
+        how: "Write a unique, descriptive title with the main topic near the start.",
+        example: "Healthy Energy Drink for Gaming & Focus | Gaming Nectar"
+      },
+      "Title length": {
+        why: "Titles that are too short lack context, while long titles can be truncated.",
+        how: "Aim for useful, readable titles around 25–65 characters.",
+        example: "Clean Energy Drinks for Gaming and Focus | Gaming Nectar"
+      },
+      "Meta description exists": {
+        why: "Meta descriptions influence click-through and help frame the page in search.",
+        how: "Add a persuasive description explaining the page benefit.",
+        example: "Discover cleaner energy drinks for focus, gaming and busy days."
+      },
+      "Meta description length": {
+        why: "Short descriptions lack detail; very long ones may be truncated.",
+        how: "Aim for roughly 90–170 characters with a clear benefit.",
+        example: "A clean energy drink made for gamers, creators and busy days. Explore flavours, benefits and bundles."
+      },
+      "Single H1": {
+        why: "The H1 helps users and search engines understand the page topic.",
+        how: "Use one clear H1 that describes the product, collection or page purpose.",
+        example: "Clean Energy Drinks for Gaming and Focus"
+      }
+    },
+    technical: {
+      "HTTP status": {
+        why: "Erroring or redirected pages can waste crawl budget and damage user experience.",
+        how: "Fix broken URLs, server errors, redirect chains or inaccessible pages.",
+        example: "Important pages should return 200 OK."
+      },
+      "Complete HTML": {
+        why: "Incomplete HTML can indicate rendering or server issues.",
+        how: "Check that the page loads fully and main content is present in the HTML.",
+        example: "View source and confirm the main content and closing html tag are present."
+      },
+      "Mobile viewport": {
+        why: "The viewport tag helps pages display correctly on mobile devices.",
+        how: "Add a viewport meta tag in the document head.",
+        example: "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+      },
+      Canonical: {
+        why: "Canonical tags help search engines understand the preferred URL.",
+        how: "Add canonical tags pointing to the clean preferred page URL.",
+        example: "A product page should canonicalise to its main product URL."
+      },
+      "Indexability hints": {
+        why: "A noindex directive can stop pages appearing in Google.",
+        how: "Remove noindex from pages that should rank.",
+        example: "Product, collection and content pages should usually be indexable."
+      }
+    },
+    linking: {
+      "Internal links": {
+        why: "Internal links distribute authority and show relationships between pages.",
+        how: "Add contextual links to related products, collections, guides, FAQs and buying pages.",
+        example: "From a product page, link to ingredients, bundles, FAQs and related flavours."
+      },
+      "External links": {
+        why: "Trusted references can support claims and improve credibility.",
+        how: "Where useful, link to review platforms, certifications, studies or social proof.",
+        example: "If mentioning an ingredient benefit, cite or explain the source of the claim."
+      },
+      "Link volume balance": {
+        why: "Too many links can create clutter, dilute attention and make the page harder to interpret.",
+        how: "Reduce repeated menu, footer, filter or duplicate links and prioritise useful contextual links.",
+        example: "Keep important navigation but reduce repeated links that do not help users make decisions."
+      }
+    },
+    content: {
+      "Content depth": {
+        why: "Thin pages often fail to answer enough questions to rank, convert or be used by AI systems.",
+        how: "Add deeper copy covering benefits, use cases, ingredients, objections, FAQs, comparisons and trust signals.",
+        example: "Explain what the product is, who it is for, why it is different, ingredients, usage and FAQs."
+      },
+      "Section structure": {
+        why: "Clear sections improve scanning, SEO and AI extraction.",
+        how: "Use H2 sections for benefits, ingredients, FAQs, reviews, delivery, comparisons and usage.",
+        example: "Benefits, Ingredients, How to Use, FAQs, Reviews, Delivery & Returns."
+      },
+      "Content signal: benefits": {
+        why: "Users need to understand the outcome, not just the product.",
+        how: "Explain benefits in clear, specific language.",
+        example: "Supports focus, cleaner energy, lower sugar, vitamins and minerals."
+      },
+      "Content signal: ingredients": {
+        why: "Ingredients and nutrition are important trust signals for food and drink products.",
+        how: "Show ingredient and nutrition information clearly.",
+        example: "Include caffeine, sugar, calories, vitamins, minerals and flavour information."
+      },
+      "Content signal: usage": {
+        why: "Usage context helps customers understand when and why to buy.",
+        how: "Add guidance on when to drink it and who it suits.",
+        example: "For gaming sessions, work focus, studying, workouts or busy days."
+      },
+      "Content signal: objections": {
+        why: "Objections stop purchases. Addressing them improves conversion.",
+        how: "Answer concerns around delivery, returns, subscriptions, taste, ingredients and caffeine.",
+        example: "Add sections for shipping, returns, caffeine level and daily use."
+      },
+      "Content signal: socialProof": {
+        why: "Reviews and proof reduce purchase hesitation.",
+        how: "Add reviews, ratings, testimonials and customer feedback.",
+        example: "Show review stars near the product title and detailed reviews lower on the page."
+      }
+    },
+    conversion: {
+      "Primary CTA": {
+        why: "A weak or missing CTA makes it harder for users to take the next step.",
+        how: "Make Add to Cart, Buy Now, Shop Now or Subscribe highly visible.",
+        example: "Use a clear sticky Add to Cart button on product pages."
+      },
+      "Pricing clarity": {
+        why: "Users need price clarity before they can make a purchase decision.",
+        how: "Make price, sale price, bundles and subscription savings obvious.",
+        example: "Show price near the product title and again near the CTA."
+      },
+      "Value/offer signal": {
+        why: "Value signals help users understand why they should buy now or buy more.",
+        how: "Show bundles, savings, bestsellers, discounts or limited offers where relevant.",
+        example: "Save 15% with a monthly bundle."
+      }
+    },
+    trust: {
+      "Reviews/social proof": {
+        why: "Reviews reduce hesitation and increase confidence.",
+        how: "Add reviews, ratings, testimonials and customer quotes.",
+        example: "Show average rating, review count and written reviews."
+      },
+      "Delivery/returns clarity": {
+        why: "Delivery and returns uncertainty can stop purchases.",
+        how: "Make shipping, delivery times, returns and refunds visible.",
+        example: "Free UK delivery over £X. 30-day returns."
+      },
+      "Contact/help clarity": {
+        why: "Users trust brands more when help and contact options are clear.",
+        how: "Add clear contact, support and help links.",
+        example: "Need help? Contact us at support@example.com."
+      },
+      "Guarantee/security": {
+        why: "Guarantees and secure checkout messaging reduce perceived risk.",
+        how: "Add secure checkout, guarantee or satisfaction messaging where true.",
+        example: "Secure checkout. Money-back guarantee."
+      }
+    },
+    merchandising: {
+      "Variant clarity": {
+        why: "Users need to understand available flavours, sizes, bundles and quantities.",
+        how: "Make variants easy to compare and select.",
+        example: "Show flavour cards, pack size and bundle options clearly."
+      },
+      "Ingredient/nutrition clarity": {
+        why: "Nutrition information is central for food and drink purchase confidence.",
+        how: "Show caffeine, sugar, calories, vitamins, minerals and ingredients clearly.",
+        example: "Add a nutrition table and ingredient breakdown."
+      },
+      "Use-case clarity": {
+        why: "Use cases help customers picture when the product fits into their life.",
+        how: "Explain whether it is for gaming, work, study, workouts or daily energy.",
+        example: "Perfect for gaming sessions, work focus and busy days."
+      },
+      "Benefit clarity": {
+        why: "Clear benefits make the product easier to understand and buy.",
+        how: "Explain the specific outcomes users get.",
+        example: "Clean energy, focus support, lower sugar and added vitamins."
+      }
+    }
+  };
+
+  return (
+    contexts[category]?.[checkName] || {
+      why: "This signal helps users, search engines and AI systems understand the page more clearly.",
+      how: "Improve the page by making the information clearer, more specific and easier to find.",
+      example: "Add concise, specific copy and structure it with clear headings and supporting details."
+    }
+  );
 }
 %>
