@@ -12,6 +12,12 @@ import {
   getAuditRunById
 } from "./services/audit/store.js";
 import { ensureIndexes } from "./services/db/mongodb.js";
+import {
+  createTodo,
+  getTodosForAuditRun,
+  getTodoSummaryForAuditRun,
+  updateTodoStatus
+} from "./services/audit/todos.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,8 +28,8 @@ const PORT = process.env.PORT || 3000;
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
-app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "6mb" }));
+app.use(express.json({ limit: "6mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", async (req, res) => {
@@ -60,12 +66,17 @@ app.get("/audit/:id", async (req, res) => {
       });
     }
 
+    const todos = await getTodosForAuditRun(req.params.id);
+    const todoSummary = await getTodoSummaryForAuditRun(req.params.id);
+
     return res.render("results", {
       title: "Saved Audit Results",
       results: auditRun.results || [],
       siteAudit: auditRun.siteAudit || null,
       competitorAnalysis: auditRun.competitorAnalysis || null,
-      auditRun
+      auditRun,
+      todos,
+      todoSummary
     });
   } catch (error) {
     console.error("Saved audit route error:", error);
@@ -192,6 +203,49 @@ app.post("/audit", async (req, res) => {
       res,
       "Something went wrong while running the audit. Check the Render logs for details."
     );
+  }
+});
+
+app.post("/todos", async (req, res) => {
+  try {
+    await createTodo({
+      auditRunId: req.body.auditRunId,
+      pageUrl: req.body.pageUrl,
+      pageTitle: req.body.pageTitle,
+      category: req.body.category,
+      checkName: req.body.checkName,
+      severity: req.body.severity,
+      message: req.body.message,
+      recommendation: req.body.recommendation,
+      evidence: req.body.evidence,
+      why: req.body.why,
+      how: req.body.how,
+      example: req.body.example,
+      businessImpact: req.body.businessImpact,
+      implementationHint: req.body.implementationHint,
+      expectedImpact: req.body.expectedImpact,
+      effort: req.body.effort,
+      returnTo: req.body.returnTo
+    });
+
+    return res.redirect(req.body.returnTo || "/");
+  } catch (error) {
+    console.error("Create todo error:", error);
+    return res.redirect(req.body.returnTo || "/");
+  }
+});
+
+app.post("/todos/:id/status", async (req, res) => {
+  try {
+    await updateTodoStatus({
+      todoId: req.params.id,
+      status: req.body.status
+    });
+
+    return res.redirect(req.body.returnTo || "/");
+  } catch (error) {
+    console.error("Update todo status error:", error);
+    return res.redirect(req.body.returnTo || "/");
   }
 });
 
