@@ -29,7 +29,7 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
   const h3s = extractHeadings(safeHtml, "h3");
   const imageStats = analyseImages(safeHtml);
   const links = analyseLinks(safeHtml, url);
-  const schema = analyseSchema(safeHtml);
+  const schema = analyseSchemaDeep(safeHtml);
   const wordCount = countWords(text);
   const scriptCount = countMatches(safeHtml, /<script\b/gi);
   const styleCount = countMatches(
@@ -53,7 +53,14 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
       passMessage,
       failMessage,
       recommendation = "",
-      evidence = ""
+      evidence = "",
+      why = "",
+      how = "",
+      example = "",
+      businessImpact = "",
+      implementationHint = "",
+      expectedImpact = "",
+      effort = ""
     } = config;
 
     categoryDetails[category].push({
@@ -62,7 +69,15 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
       severity,
       message: passed ? passMessage : failMessage,
       recommendation,
-      evidence
+      evidence,
+      why,
+      how,
+      example,
+      businessImpact,
+      implementationHint,
+      expectedImpact,
+      effort
+      
     });
 
     if (passed) {
@@ -83,7 +98,14 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
       severity,
       message: failMessage,
       recommendation,
-      evidence
+      evidence,
+      why,
+      how,
+      example,
+      businessImpact,
+      implementationHint,
+      expectedImpact,
+      effort
     });
 
     if (recommendation) {
@@ -285,6 +307,29 @@ export function calculatePageAudit({ url, html, status, loadMs }) {
     recommendation:
       "Ensure JSON-LD uses explicit @type values and validates cleanly."
   });
+  const schemaConsistencyChecks = buildSchemaConsistencyChecks({
+  schema,
+  text,
+  title,
+  metaDescription,
+  h1s
+});
+
+schemaConsistencyChecks.forEach((item) => {
+  check("geo", item);
+});
+
+const geoAeoChecks = buildGeoAeoChecks({
+  text,
+  title,
+  metaDescription,
+  h1s,
+  h2s
+});
+
+geoAeoChecks.forEach((item) => {
+  check("geo", item);
+});
 
   const geoChecks = [
     {
