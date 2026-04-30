@@ -139,3 +139,84 @@ function formatCategory(value) {
     .join(" ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+
+
+const PAGE_SIZE = 10;
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-tab-panel]").forEach((panel) => {
+    initialisePanelPagination(panel);
+  });
+});
+
+function initialisePanelPagination(panel) {
+  const cards = [...panel.querySelectorAll(".deep-card")];
+
+  if (cards.length <= PAGE_SIZE) return;
+
+  const controls = document.createElement("div");
+  controls.className = "panel-controls";
+  controls.innerHTML = `
+    <input type="search" placeholder="Search URL or title..." data-panel-search />
+    <select data-panel-status>
+      <option value="all">All checks</option>
+      <option value="fail">Failing checks only</option>
+      <option value="pass">Passing checks only</option>
+    </select>
+    <button type="button" data-panel-load-more>Load more</button>
+  `;
+
+  const heading = panel.querySelector(".section-heading");
+  heading?.insertAdjacentElement("afterend", controls);
+
+  let visibleCount = PAGE_SIZE;
+
+  const searchInput = controls.querySelector("[data-panel-search]");
+  const statusSelect = controls.querySelector("[data-panel-status]");
+  const loadMore = controls.querySelector("[data-panel-load-more]");
+
+  function applyFilters() {
+    const query = String(searchInput.value || "").toLowerCase();
+    const status = statusSelect.value;
+
+    const matchingCards = cards.filter((card) => {
+      const text = card.textContent.toLowerCase();
+
+      const matchesSearch = !query || text.includes(query);
+
+      const matchesStatus =
+        status === "all" ||
+        (status === "fail" && card.querySelector(".check-fail")) ||
+        (status === "pass" && card.querySelector(".check-pass"));
+
+      return matchesSearch && matchesStatus;
+    });
+
+    cards.forEach((card) => {
+      card.hidden = true;
+    });
+
+    matchingCards.slice(0, visibleCount).forEach((card) => {
+      card.hidden = false;
+    });
+
+    loadMore.hidden = matchingCards.length <= visibleCount;
+  }
+
+  searchInput.addEventListener("input", () => {
+    visibleCount = PAGE_SIZE;
+    applyFilters();
+  });
+
+  statusSelect.addEventListener("change", () => {
+    visibleCount = PAGE_SIZE;
+    applyFilters();
+  });
+
+  loadMore.addEventListener("click", () => {
+    visibleCount += PAGE_SIZE;
+    applyFilters();
+  });
+
+  applyFilters();
+}
