@@ -21,7 +21,7 @@
           <div>
             <p class="eyebrow">Keyword intelligence</p>
             <h1>Keywords</h1>
-            <p>Track keyword visibility, estimated organic value, and paid search equivalent.</p>
+            <p>Monitor keyword strength, organic value, estimated paid equivalent and improvement opportunities.</p>
           </div>
         </header>
 
@@ -36,14 +36,14 @@
               <label for="keyword">Keyword</label>
               <input id="keyword" name="keyword" type="text" placeholder="pokemon cards uk" required />
 
-              <label for="targetUrl">Target URL</label>
-              <input id="targetUrl" name="targetUrl" type="url" placeholder="https://www.gamingnectar.com/collections/..." />
+              <label for="location">Location</label>
+              <input id="location" name="location" type="text" value="United Kingdom" />
 
-              <label for="searchVolume">Search volume</label>
-              <input id="searchVolume" name="searchVolume" type="number" min="0" />
+              <label for="searchVolume">Searches/mo</label>
+              <input id="searchVolume" name="searchVolume" type="number" min="0" placeholder="Optional until API connected" />
 
               <label for="cpc">CPC / Google spend equivalent</label>
-              <input id="cpc" name="cpc" type="number" min="0" step="0.01" />
+              <input id="cpc" name="cpc" type="number" min="0" step="0.01" placeholder="Optional until API connected" />
 
               <button type="submit">Track keyword</button>
             </form>
@@ -53,7 +53,7 @@
             <div class="card-heading">
               <p class="eyebrow">Snapshot</p>
               <h2>Update keyword values</h2>
-              <p>Run a keyword snapshot to update current estimated value. API-backed ranking can be added later with DataForSEO or SerpApi.</p>
+              <p>Refresh all monitored keywords. For live Google rankings and CPC, connect DataForSEO, SerpApi, Google Search Console or Google Ads data.</p>
             </div>
 
             <form method="POST" action="/keywords/snapshot">
@@ -62,46 +62,115 @@
           </article>
         </section>
 
-        <section class="card">
-          <div class="section-heading">
-            <p class="eyebrow">Tracked values</p>
-            <h2>Keyword snapshots</h2>
+        <section class="card keyword-card">
+          <div class="section-heading row-heading">
+            <div>
+              <p class="eyebrow">Monitored keywords</p>
+              <h2>Keyword tracker</h2>
+            </div>
+            <span class="muted"><%= trackedKeywords?.length || 0 %> tracked</span>
           </div>
 
-          <% if (keywordSnapshots && keywordSnapshots.length) { %>
-            <div class="data-table-wrap">
-              <table class="data-table">
+          <% if (trackedKeywords && trackedKeywords.length) { %>
+            <div class="keyword-table-wrap">
+              <table class="keyword-table">
                 <thead>
                   <tr>
                     <th>Keyword</th>
+                    <th>Location</th>
+                    <th>Searches/mo</th>
                     <th>Rank</th>
-                    <th>Search volume</th>
+                    <th>Visits/mo</th>
                     <th>CPC</th>
-                    <th>Estimated clicks</th>
-                    <th>Paid value</th>
-                    <th>Date</th>
+                    <th>Score/mo</th>
+                    <th>Advice</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <% keywordSnapshots.forEach(function(row) { %>
+                  <% trackedKeywords.forEach(function(item) { const row = item.dashboard || {}; %>
                     <tr>
-                      <td><strong><%= row.keyword %></strong><br><small><%= row.targetUrl || "" %></small></td>
-                      <td><%= row.rank || "—" %></td>
-                      <td><%= row.searchVolume || 0 %></td>
+                      <td>
+                        <strong><%= row.keyword || item.keyword %></strong>
+                        <small><%= row.provider || "manual/fallback" %></small>
+                      </td>
+                      <td><%= row.location || "United Kingdom" %></td>
+                      <td><strong><%= row.searchVolume || 0 %></strong></td>
+                      <td>
+                        <% if (row.rank) { %>
+                          <strong>#<%= row.rank %></strong>
+                          <% if (row.rankChange > 0) { %>
+                            <small class="up">▲ <%= row.rankChange %></small>
+                          <% } else if (row.rankChange < 0) { %>
+                            <small class="down">▼ <%= Math.abs(row.rankChange) %></small>
+                          <% } %>
+                        <% } else { %>
+                          <span class="muted">—</span>
+                        <% } %>
+                      </td>
+                      <td><strong><%= row.estimatedClicks || 0 %></strong></td>
                       <td>£<%= row.cpc || 0 %></td>
-                      <td><%= row.estimatedClicks || 0 %></td>
-                      <td>£<%= row.equivalentPaidValue || 0 %></td>
-                      <td><%= new Date(row.createdAt).toLocaleString("en-GB") %></td>
+                      <td>
+                        <strong><%= row.score || 0 %>/100</strong>
+                        <small>£<%= row.equivalentPaidValue || 0 %></small>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          class="icon-button"
+                          data-keyword-modal
+                          data-keyword="<%= encodeURIComponent(row.keyword || item.keyword) %>"
+                          data-score="<%= row.score || 0 %>"
+                          data-rank="<%= row.rank || '' %>"
+                          data-volume="<%= row.searchVolume || 0 %>"
+                          data-cpc="<%= row.cpc || 0 %>"
+                          data-value="<%= row.equivalentPaidValue || 0 %>"
+                          data-advice="<%= encodeURIComponent(JSON.stringify(row.advice || {})) %>"
+                        >+</button>
+                      </td>
                     </tr>
                   <% }) %>
                 </tbody>
               </table>
             </div>
           <% } else { %>
-            <p>No keyword snapshots yet. Add a keyword above, then run a snapshot.</p>
+            <p>No keywords are being monitored yet. Add a keyword above to start tracking it.</p>
           <% } %>
         </section>
       </section>
     </main>
+
+    <div class="modal" data-keyword-modal-panel hidden>
+      <div class="modal-backdrop" data-keyword-modal-close></div>
+      <article class="modal-panel">
+        <button type="button" class="modal-close" data-keyword-modal-close>×</button>
+        <p class="eyebrow">Keyword opportunity</p>
+        <h2 data-modal-keyword>Keyword</h2>
+
+        <div class="summary-strip">
+          <article class="metric-card">
+            <span>Strength</span>
+            <strong data-modal-score>0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Rank</span>
+            <strong data-modal-rank>—</strong>
+          </article>
+          <article class="metric-card">
+            <span>Searches/mo</span>
+            <strong data-modal-volume>0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Paid value</span>
+            <strong data-modal-value>£0</strong>
+          </article>
+        </div>
+
+        <h3>How to improve</h3>
+        <p data-modal-summary></p>
+        <ul data-modal-actions></ul>
+      </article>
+    </div>
+
+    <script src="/keywords.js"></script>
   </body>
 </html>
