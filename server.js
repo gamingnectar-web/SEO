@@ -472,10 +472,19 @@ app.post("/competitors", requireAuth, async (req, res) => {
       maxUrls
     });
 
-    return res.redirect(req.body.returnTo || "/audit");
+    const message = `Tracked and scanned ${competitor.domain}. Audited up to ${maxUrls} URLs.`;
+
+    return res.redirect(
+      `${req.body.returnTo || "/audit"}?notice=${encodeURIComponent(message)}`
+    );
   } catch (error) {
     console.error("Competitor create error:", error);
-    return res.redirect(req.body.returnTo || "/audit");
+
+    return res.redirect(
+      `${req.body.returnTo || "/audit"}?notice=${encodeURIComponent(
+        "Competitor could not be scanned. Check the domain and Render logs."
+      )}`
+    );
   }
 });
 
@@ -489,10 +498,23 @@ app.post("/competitors/snapshot", requireAuth, async (req, res) => {
       maxUrls
     });
 
-    return res.redirect(req.body.returnTo || "/audit");
+    const target = req.body.domain
+      ? `Scanned ${req.body.domain}`
+      : "Scanned all competitors";
+
+    const message = `${target}. Audited up to ${maxUrls} URLs per competitor.`;
+
+    return res.redirect(
+      `${req.body.returnTo || "/audit"}?notice=${encodeURIComponent(message)}`
+    );
   } catch (error) {
     console.error("Competitor snapshot error:", error);
-    return res.redirect(req.body.returnTo || "/audit");
+
+    return res.redirect(
+      `${req.body.returnTo || "/audit"}?notice=${encodeURIComponent(
+        "Competitor scan failed. Check the Render logs."
+      )}`
+    );
   }
 });
 
@@ -601,12 +623,17 @@ app.get("/audit", requireAuth, async (req, res) => {
   const trackedCompetitors = await getTrackedCompetitors(ownerKey).catch(
     () => []
   );
+  const competitorSnapshots = await getCompetitorDashboard(ownerKey, 100).catch(
+    () => []
+  );
 
   return res.render("index", {
     title: "Gaming Nectar Site Quality Auditor",
     error: null,
+    notice: req.query.notice || null,
     recentRuns,
-    trackedCompetitors
+    trackedCompetitors,
+    competitorSnapshots
   });
 });
 
@@ -617,12 +644,20 @@ app.get("/audit/:id", requireAuth, async (req, res) => {
 
     if (!auditRun) {
       const recentRuns = await safelyGetRecentRuns(ownerKey);
+      const trackedCompetitors = await getTrackedCompetitors(ownerKey).catch(
+        () => []
+      );
+      const competitorSnapshots = await getCompetitorDashboard(ownerKey, 100).catch(
+        () => []
+      );
 
       return res.status(404).render("index", {
         title: "Gaming Nectar Site Quality Auditor",
         error: "Audit run not found.",
+        notice: null,
         recentRuns,
-        trackedCompetitors: []
+        trackedCompetitors,
+        competitorSnapshots
       });
     }
 
@@ -646,12 +681,21 @@ app.get("/audit/:id", requireAuth, async (req, res) => {
     console.error("Saved audit route error:", error);
 
     const recentRuns = await safelyGetRecentRuns(getOwnerKey(req));
+    const trackedCompetitors = await getTrackedCompetitors(getOwnerKey(req)).catch(
+      () => []
+    );
+    const competitorSnapshots = await getCompetitorDashboard(
+      getOwnerKey(req),
+      100
+    ).catch(() => []);
 
     return res.status(500).render("index", {
       title: "Gaming Nectar Site Quality Auditor",
       error: "Could not load the saved audit.",
+      notice: null,
       recentRuns,
-      trackedCompetitors: []
+      trackedCompetitors,
+      competitorSnapshots
     });
   }
 });
@@ -853,12 +897,21 @@ app.use(async (req, res) => {
   }
 
   const recentRuns = await safelyGetRecentRuns(getOwnerKey(req));
+  const trackedCompetitors = await getTrackedCompetitors(getOwnerKey(req)).catch(
+    () => []
+  );
+  const competitorSnapshots = await getCompetitorDashboard(
+    getOwnerKey(req),
+    100
+  ).catch(() => []);
 
   return res.status(404).render("index", {
     title: "Gaming Nectar Site Quality Auditor",
     error: `The page "${req.path}" does not exist. Use the audit form below.`,
+    notice: null,
     recentRuns,
-    trackedCompetitors: []
+    trackedCompetitors,
+    competitorSnapshots
   });
 });
 
@@ -872,12 +925,17 @@ async function renderIndexWithError(req, res, error) {
   const trackedCompetitors = await getTrackedCompetitors(ownerKey).catch(
     () => []
   );
+  const competitorSnapshots = await getCompetitorDashboard(ownerKey, 100).catch(
+    () => []
+  );
 
   return res.render("index", {
     title: "Gaming Nectar Site Quality Auditor",
     error,
+    notice: null,
     recentRuns,
-    trackedCompetitors
+    trackedCompetitors,
+    competitorSnapshots
   });
 }
 

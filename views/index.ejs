@@ -33,12 +33,18 @@
           </div>
 
           <div class="header-actions">
-            <a class="button-link secondary-link" href="/dashboard">Back to dashboard</a>
+            <a class="button-link secondary-link" href="/dashboard">
+              Back to dashboard
+            </a>
           </div>
         </header>
 
         <% if (error) { %>
           <div class="error"><%= error %></div>
+        <% } %>
+
+        <% if (notice) { %>
+          <div class="notice"><%= notice %></div>
         <% } %>
 
         <section class="tool-grid three-tools">
@@ -176,7 +182,19 @@
 
               <form method="POST" action="/competitors/snapshot">
                 <input type="hidden" name="returnTo" value="/audit" />
-                <button type="submit">Scan all competitors</button>
+                <button
+                  type="submit"
+                  class="icon-action-button scan-action"
+                  title="Scan all competitors"
+                  aria-label="Scan all competitors"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3" />
+                    <path d="M7 12h10" />
+                    <path d="M9 9h6v6H9z" />
+                  </svg>
+                  <span>Scan all</span>
+                </button>
               </form>
             </div>
 
@@ -186,13 +204,20 @@
                   <tr>
                     <th>Domain</th>
                     <th>Tracked URLs</th>
-                    <th>Updated</th>
+                    <th>Latest scan</th>
+                    <th>Score</th>
+                    <th>Issues</th>
+                    <th>Pages</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  <% trackedCompetitors.forEach(function(competitor) { %>
+                  <% trackedCompetitors.forEach(function(competitor) {
+                    const latestSnapshot = (competitorSnapshots || []).find(function(snapshot) {
+                      return snapshot.domain === competitor.domain;
+                    });
+                  %>
                     <tr>
                       <td>
                         <strong><%= competitor.domain %></strong>
@@ -206,20 +231,72 @@
                       </td>
 
                       <td>
-                        <%= competitor.updatedAt ? new Date(competitor.updatedAt).toLocaleString("en-GB") : "—" %>
+                        <% if (latestSnapshot) { %>
+                          <%= latestSnapshot.createdAt ? new Date(latestSnapshot.createdAt).toLocaleString("en-GB") : "—" %>
+                          <small><%= latestSnapshot.crawlMode || "scan" %></small>
+                        <% } else { %>
+                          <span class="muted">Not scanned yet</span>
+                        <% } %>
                       </td>
 
-                      <td class="table-actions">
+                      <td>
+                        <% if (latestSnapshot) { %>
+                          <strong><%= latestSnapshot.averageScore || 0 %>/10</strong>
+                        <% } else { %>
+                          <span class="muted">—</span>
+                        <% } %>
+                      </td>
+
+                      <td>
+                        <% if (latestSnapshot) { %>
+                          <%= latestSnapshot.issueCount || 0 %>
+                        <% } else { %>
+                          <span class="muted">—</span>
+                        <% } %>
+                      </td>
+
+                      <td>
+                        <% if (latestSnapshot) { %>
+                          <%= latestSnapshot.pageCount || 0 %>
+                          <% if (latestSnapshot.discoveredCount) { %>
+                            <small><%= latestSnapshot.discoveredCount %> discovered</small>
+                          <% } %>
+                        <% } else { %>
+                          <span class="muted">—</span>
+                        <% } %>
+                      </td>
+
+                      <td class="table-actions icon-table-actions">
                         <form method="POST" action="/competitors/snapshot">
                           <input type="hidden" name="returnTo" value="/audit" />
                           <input type="hidden" name="domain" value="<%= competitor.domain %>" />
-                          <button type="submit" class="small-button">Scan</button>
+                          <button
+                            type="submit"
+                            class="icon-only-button scan-icon"
+                            title="Scan competitor"
+                            aria-label="Scan competitor"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3" />
+                              <path d="M7 12h10" />
+                              <path d="M9 9h6v6H9z" />
+                            </svg>
+                          </button>
                         </form>
 
                         <form method="POST" action="/competitors/delete">
                           <input type="hidden" name="returnTo" value="/audit" />
                           <input type="hidden" name="domain" value="<%= competitor.domain %>" />
-                          <button type="submit" class="small-button danger-button">Remove</button>
+                          <button
+                            type="submit"
+                            class="icon-only-button delete-icon"
+                            title="Remove competitor"
+                            aria-label="Remove competitor"
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                          </button>
                         </form>
                       </td>
                     </tr>
