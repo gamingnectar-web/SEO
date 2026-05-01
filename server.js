@@ -72,6 +72,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set("trust proxy", 1);
+
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
@@ -85,6 +87,7 @@ app.use(
     secret: process.env.SESSION_SECRET || "dev-only-change-me",
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     store: process.env.MONGODB_URI
       ? MongoStore.create({
           mongoUrl: process.env.MONGODB_URI,
