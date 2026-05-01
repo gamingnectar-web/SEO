@@ -18,14 +18,14 @@ import {
   getAuditRunById
 } from "./services/audit/store.js";
 
-import {
-  ensureIndexes
-} from "./services/db/mongodb.js";
+import { ensureIndexes } from "./services/db/mongodb.js";
 
 import {
   createTodo,
   getTodosForAuditRun,
   getTodoSummaryForAuditRun,
+  getTodosForOwner,
+  getTodoSummaryForOwner,
   updateTodoStatus
 } from "./services/audit/todos.js";
 
@@ -33,6 +33,7 @@ import {
   attachAuthLocals,
   bootstrapAdminUser,
   buildShopifyInstallUrl,
+  createPasswordUser,
   exchangeShopifyCode,
   getOwnerKey,
   requireAuth,
@@ -72,13 +73,18 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+/**
+ * Important for Render / reverse proxy hosting.
+ * Without this, secure session cookies may not persist,
+ * which causes "Invalid Shopify OAuth state."
+ */
 app.set("trust proxy", 1);
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-app.use(express.urlencoded({ extended: true, limit: "6mb" }));
-app.use(express.json({ limit: "6mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
 app.use(
@@ -105,6 +111,10 @@ app.use(
 
 app.use(attachAuthLocals);
 app.use(express.static(path.join(__dirname, "public")));
+
+/* -------------------------------------------------------------------------- */
+/* Auth routes                                                                 */
+/* -------------------------------------------------------------------------- */
 
 app.get("/login", (req, res) => {
   if (res.locals.auth.isLoggedIn) {
@@ -133,7 +143,18 @@ app.post("/login", async (req, res) => {
     req.session.userId = user._id.toString();
     req.session.userEmail = user.email;
 
-    return res.redirect(req.body.returnTo || "/dashboard");
+    return req.session.save((error) => {
+      if (error) {
+        console.error("Could not save login session:", error);
+        return res.status(500).render("login", {
+          title: "Log in",
+          error: "Could not save your session. Please try again.",
+          returnTo: req.body.returnTo || "/dashboard"
+        });
+      }
+
+      return res.redirect(req.body.returnTo || "/dashboard");
+    });
   } catch (error) {
     console.error("Login error:", error);
 
@@ -145,6 +166,50 @@ app.post("/login", async (req, res) => {
   }
 });
 
+app.get("/signup", (req, res) => {
+  if (res.locals.auth.isLoggedIn) {
+    return res.redirect("/dashboard");
+  }
+
+  return res.render("signup", {
+    title: "Create account",
+    error: null
+  });
+});
+
+app.post("/signup", async (req, res) => {
+  try {
+    const user = await createPasswordUser({
+      email: req.body.email,
+      password: req.body.password,
+      siteUrl: req.body.siteUrl
+    });
+
+    req.session.userId = user._id.toString();
+    req.session.userEmail = user.email;
+
+    return req.session.save((error) => {
+      if (error) {
+        console.error("Could not save signup session:", error);
+
+        return res.status(500).render("signup", {
+          title: "Create account",
+          error: "Your account was created, but we could not save your session. Please log in."
+        });
+      }
+
+      return res.redirect("/dashboard");
+    });
+  } catch (error) {
+    console.error("Signup error:", error);
+
+    return res.status(400).render("signup", {
+      title: "Create account",
+      error: error.message || "Could not create account."
+    });
+  }
+});
+
 app.post("/logout", (req, res) => {
   req.session.destroy(() => {
     res.clearCookie("gn_seo_sid");
@@ -152,13 +217,17 @@ app.post("/logout", (req, res) => {
   });
 });
 
+/* -------------------------------------------------------------------------- */
+/* Shopify OAuth                                                               */
+/* -------------------------------------------------------------------------- */
+
 app.get("/auth/shopify", (req, res) => {
   try {
     const { state, url } = buildShopifyInstallUrl(req.query.shop);
 
     req.session.shopifyOauthState = state;
 
-    req.session.save((error) => {
+    return req.session.save((error) => {
       if (error) {
         console.error("Could not save Shopify OAuth state:", error);
         return res.status(500).send("Could not start Shopify authentication.");
@@ -184,7 +253,7 @@ app.get("/auth/shopify/callback", async (req, res) => {
     if (!expectedState || expectedState !== receivedState) {
       console.error("Invalid Shopify OAuth state.", {
         hasExpectedState: Boolean(expectedState),
-        receivedState: Boolean(receivedState),
+        hasReceivedState: Boolean(receivedState),
         shop: req.query.shop
       });
 
@@ -208,10 +277,12 @@ app.get("/auth/shopify/callback", async (req, res) => {
 
     delete req.session.shopifyOauthState;
 
-    req.session.save((error) => {
+    return req.session.save((error) => {
       if (error) {
         console.error("Could not save Shopify session:", error);
-        return res.status(500).send("Shopify authentication completed, but session could not be saved.");
+        return res
+          .status(500)
+          .send("Shopify authentication completed, but the session could not be saved.");
       }
 
       return res.redirect("/dashboard");
@@ -222,7 +293,15 @@ app.get("/auth/shopify/callback", async (req, res) => {
   }
 });
 
+/* -------------------------------------------------------------------------- */
+/* Root                                                                        */
+/* -------------------------------------------------------------------------- */
+
 app.get("/", (req, res) => {
+  /**
+   * When Shopify launches the app, it may hit your app URL with ?shop=...
+   * This starts OAuth correctly instead of showing the normal login page.
+   */
   if (req.query.shop && !res.locals.auth.isLoggedIn) {
     return res.redirect(`/auth/shopify?shop=${encodeURIComponent(req.query.shop)}`);
   }
@@ -233,6 +312,10 @@ app.get("/", (req, res) => {
 
   return res.redirect("/login");
 });
+
+/* -------------------------------------------------------------------------- */
+/* Dashboard                                                                   */
+/* -------------------------------------------------------------------------- */
 
 app.get("/dashboard", requireAuth, async (req, res) => {
   try {
@@ -249,13 +332,22 @@ app.get("/dashboard", requireAuth, async (req, res) => {
     const keywordSnapshots = await getKeywordDashboard(ownerKey, 50);
     const competitorSnapshots = await getCompetitorDashboard(ownerKey, 50);
 
+    const todos = await getTodosForOwner(ownerKey, {
+      limit: 12,
+      includeDone: false
+    });
+
+    const todoSummary = await getTodoSummaryForOwner(ownerKey);
+
     return res.render("dashboard", {
       title: "SEO Intelligence Dashboard",
       recentRuns,
       timeline,
       insight,
       keywordSnapshots,
-      competitorSnapshots
+      competitorSnapshots,
+      todos,
+      todoSummary
     });
   } catch (error) {
     console.error("Dashboard route error:", error);
@@ -269,7 +361,9 @@ app.get("/api/dashboard/timeline", requireAuth, async (req, res) => {
     return res.json({ timeline });
   } catch (error) {
     console.error("Timeline API error:", error);
-    return res.status(500).json({ error: "Could not load timeline." });
+    return res.status(500).json({
+      error: "Could not load timeline."
+    });
   }
 });
 
@@ -283,6 +377,25 @@ app.post("/dashboard/run-scheduled-now", requireAuth, async (_req, res) => {
   }
 });
 
+/* -------------------------------------------------------------------------- */
+/* Keywords                                                                    */
+/* -------------------------------------------------------------------------- */
+
+app.get("/keywords", requireAuth, async (req, res) => {
+  try {
+    const ownerKey = getOwnerKey(req);
+    const keywordSnapshots = await getKeywordDashboard(ownerKey, 250);
+
+    return res.render("keywords", {
+      title: "Keywords",
+      keywordSnapshots
+    });
+  } catch (error) {
+    console.error("Keywords page error:", error);
+    return res.status(500).send("Could not load keywords.");
+  }
+});
+
 app.post("/keywords", requireAuth, async (req, res) => {
   try {
     await upsertTrackedKeyword({
@@ -293,22 +406,26 @@ app.post("/keywords", requireAuth, async (req, res) => {
       cpc: req.body.cpc
     });
 
-    return res.redirect("/dashboard");
+    return res.redirect("/keywords");
   } catch (error) {
     console.error("Keyword create error:", error);
-    return res.redirect("/dashboard");
+    return res.redirect("/keywords");
   }
 });
 
 app.post("/keywords/snapshot", requireAuth, async (req, res) => {
   try {
     await runKeywordSnapshot(getOwnerKey(req));
-    return res.redirect("/dashboard");
+    return res.redirect("/keywords");
   } catch (error) {
     console.error("Keyword snapshot error:", error);
-    return res.redirect("/dashboard");
+    return res.redirect("/keywords");
   }
 });
+
+/* -------------------------------------------------------------------------- */
+/* Competitors                                                                 */
+/* -------------------------------------------------------------------------- */
 
 app.post("/competitors", requireAuth, async (req, res) => {
   try {
@@ -339,6 +456,90 @@ app.post("/competitors/snapshot", requireAuth, async (req, res) => {
     return res.redirect("/dashboard");
   }
 });
+
+/* -------------------------------------------------------------------------- */
+/* To-dos                                                                      */
+/* -------------------------------------------------------------------------- */
+
+app.get("/todos", requireAuth, async (req, res) => {
+  try {
+    const ownerKey = getOwnerKey(req);
+
+    const todos = await getTodosForOwner(ownerKey, {
+      limit: 250,
+      includeDone: true
+    });
+
+    const todoSummary = await getTodoSummaryForOwner(ownerKey);
+
+    return res.render("todos", {
+      title: "To-dos",
+      todos,
+      todoSummary
+    });
+  } catch (error) {
+    console.error("Todos page error:", error);
+    return res.status(500).send("Could not load to-dos.");
+  }
+});
+
+app.post("/todos", requireAuth, async (req, res) => {
+  try {
+    await createTodo({
+      ownerKey: getOwnerKey(req),
+      auditRunId: req.body.auditRunId,
+      pageUrl: req.body.pageUrl,
+      pageTitle: req.body.pageTitle,
+      category: req.body.category,
+      checkName: req.body.checkName,
+      severity: req.body.severity,
+      message: req.body.message,
+      recommendation: req.body.recommendation,
+      evidence: req.body.evidence,
+      why: req.body.why,
+      how: req.body.how,
+      example: req.body.example,
+      businessImpact: req.body.businessImpact,
+      implementationHint: req.body.implementationHint,
+      expectedImpact: req.body.expectedImpact,
+      effort: req.body.effort,
+      status: req.body.status || "new",
+      priority: req.body.priority || req.body.severity,
+      dueDate: req.body.dueDate,
+      plannedFor: req.body.plannedFor,
+      source: req.body.source || "manual",
+      notes: req.body.notes,
+      returnTo: req.body.returnTo
+    });
+
+    return res.redirect(req.body.returnTo || "/todos");
+  } catch (error) {
+    console.error("Create todo error:", error);
+    return res.redirect(req.body.returnTo || "/todos");
+  }
+});
+
+app.post("/todos/:id/status", requireAuth, async (req, res) => {
+  try {
+    await updateTodoStatus({
+      todoId: req.params.id,
+      status: req.body.status,
+      dueDate: req.body.dueDate,
+      plannedFor: req.body.plannedFor,
+      notes: req.body.notes,
+      ownerKey: getOwnerKey(req)
+    });
+
+    return res.redirect(req.body.returnTo || "/todos");
+  } catch (error) {
+    console.error("Update todo status error:", error);
+    return res.redirect(req.body.returnTo || "/todos");
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* Audit routes                                                                */
+/* -------------------------------------------------------------------------- */
 
 app.get("/audit", requireAuth, async (req, res) => {
   const recentRuns = await safelyGetRecentRuns(getOwnerKey(req));
@@ -519,58 +720,9 @@ app.post("/audit", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/todos", requireAuth, async (req, res) => {
-  try {
-    await createTodo({
-      ownerKey: getOwnerKey(req),
-      auditRunId: req.body.auditRunId,
-      pageUrl: req.body.pageUrl,
-      pageTitle: req.body.pageTitle,
-      category: req.body.category,
-      checkName: req.body.checkName,
-      severity: req.body.severity,
-      message: req.body.message,
-      recommendation: req.body.recommendation,
-      evidence: req.body.evidence,
-      why: req.body.why,
-      how: req.body.how,
-      example: req.body.example,
-      businessImpact: req.body.businessImpact,
-      implementationHint: req.body.implementationHint,
-      expectedImpact: req.body.expectedImpact,
-      effort: req.body.effort,
-      status: req.body.status || "new",
-      priority: req.body.priority || req.body.severity,
-      dueDate: req.body.dueDate,
-      plannedFor: req.body.plannedFor,
-      source: req.body.source || "manual",
-      returnTo: req.body.returnTo
-    });
-
-    return res.redirect(req.body.returnTo || "/dashboard");
-  } catch (error) {
-    console.error("Create todo error:", error);
-    return res.redirect(req.body.returnTo || "/dashboard");
-  }
-});
-
-app.post("/todos/:id/status", requireAuth, async (req, res) => {
-  try {
-    await updateTodoStatus({
-      todoId: req.params.id,
-      status: req.body.status,
-      dueDate: req.body.dueDate,
-      plannedFor: req.body.plannedFor,
-      notes: req.body.notes,
-      ownerKey: getOwnerKey(req)
-    });
-
-    return res.redirect(req.body.returnTo || "/dashboard");
-  } catch (error) {
-    console.error("Update todo status error:", error);
-    return res.redirect(req.body.returnTo || "/dashboard");
-  }
-});
+/* -------------------------------------------------------------------------- */
+/* Health                                                                      */
+/* -------------------------------------------------------------------------- */
 
 app.get("/health", async (_req, res) => {
   let mongo = "unknown";
@@ -589,10 +741,16 @@ app.get("/health", async (_req, res) => {
   });
 });
 
+/* -------------------------------------------------------------------------- */
+/* 404                                                                         */
+/* -------------------------------------------------------------------------- */
+
 app.use(async (req, res) => {
-  const recentRuns = res.locals.auth.isLoggedIn
-    ? await safelyGetRecentRuns(getOwnerKey(req))
-    : [];
+  if (!res.locals.auth.isLoggedIn) {
+    return res.status(404).redirect("/login");
+  }
+
+  const recentRuns = await safelyGetRecentRuns(getOwnerKey(req));
 
   return res.status(404).render("index", {
     title: "Gaming Nectar Site Quality Auditor",
@@ -600,6 +758,10 @@ app.use(async (req, res) => {
     recentRuns
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                     */
+/* -------------------------------------------------------------------------- */
 
 async function renderIndexWithError(req, res, error) {
   const recentRuns = await safelyGetRecentRuns(getOwnerKey(req));
@@ -619,6 +781,10 @@ async function safelyGetRecentRuns(ownerKey) {
     return [];
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Boot                                                                        */
+/* -------------------------------------------------------------------------- */
 
 ensureIndexes()
   .then(async () => {
