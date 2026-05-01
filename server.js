@@ -49,7 +49,7 @@ app.use(
       : undefined,
     cookie: {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       secure: process.env.NODE_ENV === "production",
       maxAge: 1000 * 60 * 60 * 24 * 14
     }
@@ -132,7 +132,14 @@ app.get("/auth/shopify/callback", async (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  if (res.locals.auth.isLoggedIn) return res.redirect("/dashboard");
+  if (req.query.shop && !res.locals.auth.isLoggedIn) {
+    return res.redirect(`/auth/shopify?shop=${encodeURIComponent(req.query.shop)}`);
+  }
+
+  if (res.locals.auth.isLoggedIn) {
+    return res.redirect("/dashboard");
+  }
+
   return res.redirect("/login");
 });
 
