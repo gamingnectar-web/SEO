@@ -3,10 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title %></title>
+    <title><%= title || "SEO Intelligence Dashboard" %></title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
+
   <body>
     <main class="app-shell">
       <aside class="side-nav">
@@ -22,43 +23,90 @@
       </aside>
 
       <section class="app-main">
+        <%
+          const latestPoint = timeline && timeline.length ? timeline[timeline.length - 1] : null;
+          const previousPoint = timeline && timeline.length > 1 ? timeline[timeline.length - 2] : null;
+          const latestRun = recentRuns && recentRuns.length ? recentRuns[0] : null;
+          const latestSummary = latestRun?.summary || {};
+          const categoryAverages = latestSummary.categoryAverages || {};
+          const latestKeyword = keywordSnapshots && keywordSnapshots.length ? keywordSnapshots[0] : null;
+          const latestCompetitor = competitorSnapshots && competitorSnapshots.length ? competitorSnapshots[0] : null;
+
+          const scorePercent = function(scoreOutOfTen) {
+            return Math.round(Number(scoreOutOfTen || 0) * 10);
+          };
+
+          const safePercent = function(value) {
+            return Math.round(Number(value || 0));
+          };
+
+          const movement = function(current, previous) {
+            if (!current || !previous) return "—";
+            const diff = Number(current || 0) - Number(previous || 0);
+            if (diff > 0) return "+" + diff;
+            return String(diff);
+          };
+        %>
+
         <header class="app-header">
           <div>
             <p class="eyebrow">Live intelligence</p>
             <h1>SEO Intelligence Dashboard</h1>
-            <p>Trace 12-hour audit movement, competitor changes, keyword value, and planned action impact.</p>
+            <p>Track audits, technical health, content quality, competitors, keyword value and planned actions.</p>
           </div>
-          <div class="header-stat">
-            <strong><%= timeline?.length || 0 %></strong>
-            <span>Snapshots</span>
+
+          <div class="header-actions">
+            <form method="POST" action="/dashboard/run-scheduled-now">
+              <button type="submit">Run checks now</button>
+            </form>
+            <a class="button-link secondary-link" href="/audit">Run audit</a>
           </div>
         </header>
 
         <section class="summary-strip">
           <article class="metric-card">
-            <span>Open tasks</span>
+            <span>Effectiveness</span>
+            <strong><%= latestPoint?.effectivenessScore || 0 %>/100</strong>
+            <small>Movement: <%= movement(latestPoint?.effectivenessScore, previousPoint?.effectivenessScore) %></small>
+          </article>
+
+          <article class="metric-card">
+            <span>Errors / issues</span>
+            <strong><%= latestSummary.issueCount ?? latestPoint?.issueCount ?? 0 %></strong>
+            <small>Latest audited issue count</small>
+          </article>
+
+          <article class="metric-card">
+            <span>Technical</span>
+            <strong><%= categoryAverages.technical ?? (latestPoint?.technicalScore ? latestPoint.technicalScore / 10 : 0) %>/10</strong>
+            <small>Technical crawl quality</small>
+          </article>
+
+          <article class="metric-card">
+            <span>Content</span>
+            <strong><%= categoryAverages.content ?? (latestPoint?.contentScore ? latestPoint.contentScore / 10 : 0) %>/10</strong>
+            <small>Content and answer quality</small>
+          </article>
+
+          <article class="metric-card">
+            <span>Open to-dos</span>
             <strong><%= todoSummary?.active || 0 %></strong>
+            <small><%= todoSummary?.planned || 0 %> planned</small>
           </article>
+
           <article class="metric-card">
-            <span>Planned</span>
-            <strong><%= todoSummary?.planned || 0 %></strong>
-          </article>
-          <article class="metric-card">
-            <span>Keywords</span>
-            <strong><%= keywordSnapshots?.length || 0 %></strong>
-          </article>
-          <article class="metric-card">
-            <span>Audits</span>
-            <strong><%= recentRuns?.length || 0 %></strong>
+            <span>Competitors</span>
+            <strong><%= trackedCompetitors?.length || 0 %></strong>
+            <small>Static comparison set</small>
           </article>
         </section>
 
-        <section class="card knowledge-card insight-<%= insight.status %>">
+        <section class="card knowledge-card insight-<%= insight?.status || "stable" %>">
           <p class="eyebrow">What changed?</p>
-          <h2><%= insight.title %></h2>
-          <p><%= insight.message %></p>
+          <h2><%= insight?.title || "No movement insight yet" %></h2>
+          <p><%= insight?.message || "Run an audit to create your first dashboard snapshot." %></p>
 
-          <% if (insight.actions?.length) { %>
+          <% if (insight?.actions?.length) { %>
             <ul>
               <% insight.actions.forEach(function(action) { %>
                 <li><%= action %></li>
@@ -68,49 +116,109 @@
         </section>
 
         <section class="card">
-          <div class="section-heading">
-            <p class="eyebrow">Traceability</p>
-            <h2>Effectiveness over time</h2>
-            <p>Each point is an audit snapshot. Scheduled checks run every 12 hours when the scheduler is enabled.</p>
+          <div class="section-heading row-heading">
+            <div>
+              <p class="eyebrow">Traceability</p>
+              <h2>Effectiveness over time</h2>
+              <p>Each point is an audit snapshot. Manual, scheduled and competitor audits should all feed into this history.</p>
+            </div>
+            <span class="status-pill"><%= timeline?.length || 0 %> snapshots</span>
           </div>
-          <canvas id="effectivenessChart" height="120"></canvas>
+
+          <% if (timeline && timeline.length) { %>
+            <canvas id="effectivenessChart" height="120"></canvas>
+          <% } else { %>
+            <p>No snapshots yet. Run a full-site or page audit to create the first dashboard point.</p>
+          <% } %>
         </section>
 
         <section class="tool-grid three-tools">
-          <article class="card card-accent">
-            <div class="card-heading">
-              <p class="eyebrow">Manual control</p>
-              <h2>Run now</h2>
-              <p>Run the scheduled audit workflow manually.</p>
+          <article class="card">
+            <p class="eyebrow">Organic health</p>
+            <h2>Search / GEO / AEO</h2>
+            <div class="mini-score-list">
+              <div><span>SEO</span><strong><%= categoryAverages.seo ?? (latestPoint?.seoScore ? latestPoint.seoScore / 10 : 0) %>/10</strong></div>
+              <div><span>GEO</span><strong><%= categoryAverages.geo ?? (latestPoint?.geoScore ? latestPoint.geoScore / 10 : 0) %>/10</strong></div>
+              <div><span>AEO</span><strong><%= latestPoint?.aeoScore ? latestPoint.aeoScore / 10 : categoryAverages.geo || 0 %>/10</strong></div>
             </div>
-            <form method="POST" action="/dashboard/run-scheduled-now">
-              <button type="submit">Run scheduled checks now</button>
-            </form>
           </article>
 
           <article class="card">
-            <div class="card-heading">
-              <p class="eyebrow">Audit tools</p>
-              <h2>Run audit</h2>
-              <p>Open the manual page, site and competitor audit forms.</p>
+            <p class="eyebrow">Technical stack</p>
+            <h2>Technical / links</h2>
+            <div class="mini-score-list">
+              <div><span>Technical</span><strong><%= categoryAverages.technical ?? 0 %>/10</strong></div>
+              <div><span>Performance</span><strong><%= categoryAverages.performance ?? 0 %>/10</strong></div>
+              <div><span>Linking</span><strong><%= categoryAverages.linking ?? 0 %>/10</strong></div>
             </div>
-            <a class="button-link" href="/audit">Open audit tools</a>
           </article>
 
-          <article class="card card-dark">
-            <div class="card-heading">
-              <p class="eyebrow">Latest value</p>
-              <h2>Keyword value</h2>
-              <% const latestKeyword = keywordSnapshots && keywordSnapshots[0]; %>
-              <p>
-                <% if (latestKeyword) { %>
-                  Latest tracked keyword: <strong><%= latestKeyword.keyword %></strong>, estimated paid value £<%= latestKeyword.equivalentPaidValue || 0 %>.
-                <% } else { %>
-                  Add keywords to estimate organic value against paid spend.
-                <% } %>
-              </p>
+          <article class="card">
+            <p class="eyebrow">Commercial strength</p>
+            <h2>Content / trust</h2>
+            <div class="mini-score-list">
+              <div><span>Content</span><strong><%= categoryAverages.content ?? 0 %>/10</strong></div>
+              <div><span>Conversion</span><strong><%= categoryAverages.conversion ?? 0 %>/10</strong></div>
+              <div><span>Trust</span><strong><%= categoryAverages.trust ?? 0 %>/10</strong></div>
             </div>
-            <a class="button-link secondary-link" href="/keywords">Open keywords</a>
+          </article>
+        </section>
+
+        <section class="tool-grid two-tools">
+          <article class="card">
+            <div class="section-heading row-heading">
+              <div>
+                <p class="eyebrow">Competition</p>
+                <h2>Competitor comparison</h2>
+              </div>
+              <a href="/audit">Manage</a>
+            </div>
+
+            <% if (trackedCompetitors && trackedCompetitors.length) { %>
+              <div class="competitor-list">
+                <% trackedCompetitors.slice(0, 6).forEach(function(competitor) { %>
+                  <article class="compact-row">
+                    <strong><%= competitor.domain %></strong>
+                    <span><%= competitor.urls?.length || 0 %> tracked URLs</span>
+                  </article>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <p>No static competitors yet. Add competitors so every keyword/audit can be compared against the same set.</p>
+              <a class="button-link secondary-link" href="/audit">Add competitors</a>
+            <% } %>
+
+            <% if (latestCompetitor) { %>
+              <p class="muted">Latest competitor snapshot: <%= new Date(latestCompetitor.createdAt).toLocaleString("en-GB") %></p>
+            <% } %>
+          </article>
+
+          <article class="card">
+            <div class="section-heading row-heading">
+              <div>
+                <p class="eyebrow">Keyword value</p>
+                <h2>Keyword monitoring</h2>
+              </div>
+              <a href="/keywords">Open</a>
+            </div>
+
+            <% if (trackedKeywords && trackedKeywords.length) { %>
+              <div class="competitor-list">
+                <% trackedKeywords.slice(0, 6).forEach(function(item) { const row = item.dashboard || {}; %>
+                  <article class="compact-row">
+                    <strong><%= item.keyword %></strong>
+                    <span>Score <%= row.score || 0 %>/100 · £<%= row.equivalentPaidValue || 0 %></span>
+                  </article>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <p>No keywords are being monitored yet. Add keywords to estimate organic value versus paid spend.</p>
+              <a class="button-link secondary-link" href="/keywords">Add keywords</a>
+            <% } %>
+
+            <% if (latestKeyword) { %>
+              <p class="muted">Latest keyword snapshot: <%= latestKeyword.keyword %></p>
+            <% } %>
           </article>
         </section>
 
@@ -126,7 +234,7 @@
           <% if (todos && todos.length) { %>
             <div class="todo-preview">
               <% todos.forEach(function(todo) { %>
-                <article class="mini-todo priority-<%= todo.priority || 'medium' %>">
+                <article class="mini-todo priority-<%= todo.priority || "medium" %>">
                   <span><%= todo.status %></span>
                   <strong><%= todo.checkName || todo.category || "SEO task" %></strong>
                   <p><%= todo.recommendation || todo.message %></p>
@@ -135,7 +243,7 @@
               <% }) %>
             </div>
           <% } else { %>
-            <p>No active to-dos yet. Run an audit and add recommendations into your action list.</p>
+            <p>No active to-dos yet. Add tasks from audit issues or create them manually from the to-do area.</p>
           <% } %>
         </section>
 
@@ -145,6 +253,7 @@
               <p class="eyebrow">History</p>
               <h2>Recent audit runs</h2>
             </div>
+
             <div class="recent-run-list">
               <% recentRuns.forEach(function(run) { %>
                 <a class="recent-run-card" href="/audit/<%= run._id %>">
@@ -153,7 +262,7 @@
                     <strong><%= run.summary?.averageScore || 0 %>/10</strong>
                   </div>
                   <p><%= run.summary?.pageCount || 0 %> pages · <%= run.summary?.issueCount || 0 %> issues</p>
-                  <small><%= new Date(run.createdAt).toLocaleString("en-GB") %></small>
+                  <small><%= run.createdAt ? new Date(run.createdAt).toLocaleString("en-GB") : "—" %></small>
                 </a>
               <% }) %>
             </div>
