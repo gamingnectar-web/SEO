@@ -64,6 +64,7 @@ import {
 } from "./services/intelligence/keywords.js";
 
 import {
+  deleteTrackedCompetitor,
   getCompetitorDashboard,
   getTrackedCompetitors,
   runCompetitorSnapshot,
@@ -435,9 +436,9 @@ app.post("/keywords", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/keywords/snapshot", requireAuth, async (_req, res) => {
+app.post("/keywords/snapshot", requireAuth, async (req, res) => {
   try {
-    await runKeywordSnapshot(getOwnerKey(_req));
+    await runKeywordSnapshot(getOwnerKey(req));
     return res.redirect("/keywords");
   } catch (error) {
     console.error("Keyword snapshot error:", error);
@@ -451,31 +452,61 @@ app.post("/keywords/snapshot", requireAuth, async (_req, res) => {
 
 app.post("/competitors", requireAuth, async (req, res) => {
   try {
+    const ownerKey = getOwnerKey(req);
+
     const urls = String(req.body.urls || "")
       .split("\n")
       .map((url) => url.trim())
       .filter(Boolean);
 
-    await upsertTrackedCompetitor({
-      ownerKey: getOwnerKey(req),
+    const competitor = await upsertTrackedCompetitor({
+      ownerKey,
       domain: req.body.domain,
       urls
     });
 
-    return res.redirect(req.body.returnTo || "/dashboard");
+    const maxUrls = await getCompetitorAuditUrlLimit(ownerKey);
+
+    await runCompetitorSnapshot(ownerKey, {
+      domain: competitor.domain,
+      maxUrls
+    });
+
+    return res.redirect(req.body.returnTo || "/audit");
   } catch (error) {
     console.error("Competitor create error:", error);
-    return res.redirect(req.body.returnTo || "/dashboard");
+    return res.redirect(req.body.returnTo || "/audit");
   }
 });
 
 app.post("/competitors/snapshot", requireAuth, async (req, res) => {
   try {
-    await runCompetitorSnapshot(getOwnerKey(req));
-    return res.redirect(req.body.returnTo || "/dashboard");
+    const ownerKey = getOwnerKey(req);
+    const maxUrls = await getCompetitorAuditUrlLimit(ownerKey);
+
+    await runCompetitorSnapshot(ownerKey, {
+      domain: req.body.domain || null,
+      maxUrls
+    });
+
+    return res.redirect(req.body.returnTo || "/audit");
   } catch (error) {
     console.error("Competitor snapshot error:", error);
-    return res.redirect(req.body.returnTo || "/dashboard");
+    return res.redirect(req.body.returnTo || "/audit");
+  }
+});
+
+app.post("/competitors/delete", requireAuth, async (req, res) => {
+  try {
+    await deleteTrackedCompetitor({
+      ownerKey: getOwnerKey(req),
+      domain: req.body.domain
+    });
+
+    return res.redirect(req.body.returnTo || "/audit");
+  } catch (error) {
+    console.error("Competitor delete error:", error);
+    return res.redirect(req.body.returnTo || "/audit");
   }
 });
 
@@ -856,6 +887,23 @@ async function safelyGetRecentRuns(ownerKey) {
   } catch (error) {
     console.error("Could not load recent audit runs:", error);
     return [];
+  }
+}
+
+async function getCompetitorAuditUrlLimit(ownerKey) {
+  try {
+    const recentRuns = await getRecentAuditRuns(1, ownerKey);
+    const latest = recentRuns && recentRuns.length ? recentRuns[0] : null;
+
+    const fromPageCount = Number(latest?.summary?.pageCount || 0);
+    const fromInputMax = Number(latest?.input?.maxUrls || 0);
+
+    const bestGuess = Math.max(fromPageCount, fromInputMax, 10);
+
+    return Math.min(Math.max(bestGuess, 5), 100);
+  } catch (error) {
+    console.error("Could not calculate competitor audit URL limit:", error);
+    return 25;
   }
 }
 

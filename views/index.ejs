@@ -26,7 +26,10 @@
           <div>
             <p class="eyebrow">Audit tools</p>
             <h1>Site Quality Auditor</h1>
-            <p>Run full-site, page-level, or competitor audits. Results are saved and fed into the dashboard history.</p>
+            <p>
+              Run full-site, page-level, or competitor audits. Results are saved
+              and fed into the dashboard history.
+            </p>
           </div>
 
           <div class="header-actions">
@@ -99,7 +102,7 @@
             <div class="card-heading">
               <p class="eyebrow">Competition</p>
               <h2>Competitor audit</h2>
-              <p>Compare one of your pages against competitor pages.</p>
+              <p>Compare one of your pages against specific competitor pages.</p>
             </div>
 
             <form method="POST" action="/audit">
@@ -132,7 +135,11 @@
           <div class="section-heading">
             <p class="eyebrow">Static competitors</p>
             <h2>Tracked competitor list</h2>
-            <p>Add competitors here so future keyword, SEO and GEO comparisons have a fixed comparison set.</p>
+            <p>
+              Add competitors here so future keyword, SEO and GEO comparisons
+              have a fixed comparison set. If you leave tracked URLs blank, the
+              app will try to scan the competitor sitemap automatically.
+            </p>
           </div>
 
           <form method="POST" action="/competitors">
@@ -155,15 +162,22 @@
               placeholder="https://competitor.com/page-a"
             ></textarea>
 
-            <button type="submit">Track competitor</button>
+            <button type="submit">Track and scan competitor</button>
           </form>
         </section>
 
         <% if (trackedCompetitors && trackedCompetitors.length) { %>
           <section class="card">
-            <div class="section-heading">
-              <p class="eyebrow">Competitors</p>
-              <h2>Current competitor set</h2>
+            <div class="section-heading row-heading">
+              <div>
+                <p class="eyebrow">Competitors</p>
+                <h2>Current competitor set</h2>
+              </div>
+
+              <form method="POST" action="/competitors/snapshot">
+                <input type="hidden" name="returnTo" value="/audit" />
+                <button type="submit">Scan all competitors</button>
+              </form>
             </div>
 
             <div class="data-table-wrap">
@@ -173,14 +187,41 @@
                     <th>Domain</th>
                     <th>Tracked URLs</th>
                     <th>Updated</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   <% trackedCompetitors.forEach(function(competitor) { %>
                     <tr>
-                      <td><strong><%= competitor.domain %></strong></td>
-                      <td><%= competitor.urls?.length || 0 %></td>
-                      <td><%= competitor.updatedAt ? new Date(competitor.updatedAt).toLocaleString("en-GB") : "—" %></td>
+                      <td>
+                        <strong><%= competitor.domain %></strong>
+                      </td>
+
+                      <td>
+                        <%= competitor.urls?.length || 0 %>
+                        <% if (!competitor.urls || !competitor.urls.length) { %>
+                          <small>Auto sitemap scan</small>
+                        <% } %>
+                      </td>
+
+                      <td>
+                        <%= competitor.updatedAt ? new Date(competitor.updatedAt).toLocaleString("en-GB") : "—" %>
+                      </td>
+
+                      <td class="table-actions">
+                        <form method="POST" action="/competitors/snapshot">
+                          <input type="hidden" name="returnTo" value="/audit" />
+                          <input type="hidden" name="domain" value="<%= competitor.domain %>" />
+                          <button type="submit" class="small-button">Scan</button>
+                        </form>
+
+                        <form method="POST" action="/competitors/delete">
+                          <input type="hidden" name="returnTo" value="/audit" />
+                          <input type="hidden" name="domain" value="<%= competitor.domain %>" />
+                          <button type="submit" class="small-button danger-button">Remove</button>
+                        </form>
+                      </td>
                     </tr>
                   <% }) %>
                 </tbody>
@@ -203,8 +244,15 @@
                     <span><%= run.type %></span>
                     <strong><%= run.summary?.averageScore || 0 %>/10</strong>
                   </div>
-                  <p><%= run.summary?.pageCount || 0 %> pages · <%= run.summary?.issueCount || 0 %> issues</p>
-                  <small><%= run.createdAt ? new Date(run.createdAt).toLocaleString("en-GB") : "—" %></small>
+
+                  <p>
+                    <%= run.summary?.pageCount || 0 %> pages ·
+                    <%= run.summary?.issueCount || 0 %> issues
+                  </p>
+
+                  <small>
+                    <%= run.createdAt ? new Date(run.createdAt).toLocaleString("en-GB") : "—" %>
+                  </small>
                 </a>
               <% }) %>
             </div>
