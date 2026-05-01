@@ -6,10 +6,29 @@ import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { auditMultipleUrls, auditWithCompetitors, auditSiteFromSitemap } from "./services/audit/crawler.js";
-import { saveAuditRun, getRecentAuditRuns, getAuditRunById } from "./services/audit/store.js";
-import { ensureIndexes } from "./services/db/mongodb.js";
-import { createTodo, getTodosForAuditRun, getTodoSummaryForAuditRun, updateTodoStatus } from "./services/audit/todos.js";
+import {
+  auditMultipleUrls,
+  auditWithCompetitors,
+  auditSiteFromSitemap
+} from "./services/audit/crawler.js";
+
+import {
+  saveAuditRun,
+  getRecentAuditRuns,
+  getAuditRunById
+} from "./services/audit/store.js";
+
+import {
+  ensureIndexes
+} from "./services/db/mongodb.js";
+
+import {
+  createTodo,
+  getTodosForAuditRun,
+  getTodoSummaryForAuditRun,
+  updateTodoStatus
+} from "./services/audit/todos.js";
+
 import {
   attachAuthLocals,
   bootstrapAdminUser,
@@ -21,10 +40,31 @@ import {
   verifyPasswordLogin,
   verifyShopifyHmac
 } from "./services/auth/auth.js";
-import { startAuditScheduler, runScheduledAudits } from "./services/intelligence/scheduler.js";
-import { buildAuditSnapshot, buildMovementInsight, getAuditHistory, getDashboardTimeline, saveAuditSnapshot } from "./services/intelligence/history.js";
-import { getKeywordDashboard, runKeywordSnapshot, upsertTrackedKeyword } from "./services/intelligence/keywords.js";
-import { getCompetitorDashboard, runCompetitorSnapshot, upsertTrackedCompetitor } from "./services/intelligence/competitors.js";
+
+import {
+  startAuditScheduler,
+  runScheduledAudits
+} from "./services/intelligence/scheduler.js";
+
+import {
+  buildAuditSnapshot,
+  buildMovementInsight,
+  getAuditHistory,
+  getDashboardTimeline,
+  saveAuditSnapshot
+} from "./services/intelligence/history.js";
+
+import {
+  getKeywordDashboard,
+  runKeywordSnapshot,
+  upsertTrackedKeyword
+} from "./services/intelligence/keywords.js";
+
+import {
+  getCompetitorDashboard,
+  runCompetitorSnapshot,
+  upsertTrackedCompetitor
+} from "./services/intelligence/competitors.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +78,7 @@ app.set("views", path.join(__dirname, "views"));
 app.use(express.urlencoded({ extended: true, limit: "6mb" }));
 app.use(express.json({ limit: "6mb" }));
 app.use(cookieParser());
+
 app.use(
   session({
     name: "gn_seo_sid",
@@ -45,7 +86,10 @@ app.use(
     resave: false,
     saveUninitialized: false,
     store: process.env.MONGODB_URI
-      ? MongoStore.create({ mongoUrl: process.env.MONGODB_URI, collectionName: "sessions" })
+      ? MongoStore.create({
+          mongoUrl: process.env.MONGODB_URI,
+          collectionName: "sessions"
+        })
       : undefined,
     cookie: {
       httpOnly: true,
@@ -55,11 +99,15 @@ app.use(
     }
   })
 );
+
 app.use(attachAuthLocals);
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/login", (req, res) => {
-  if (res.locals.auth.isLoggedIn) return res.redirect(req.query.returnTo || "/dashboard");
+  if (res.locals.auth.isLoggedIn) {
+    return res.redirect(req.query.returnTo || "/dashboard");
+  }
+
   return res.render("login", {
     title: "Log in",
     error: null,
@@ -70,6 +118,7 @@ app.get("/login", (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const user = await verifyPasswordLogin(req.body.email, req.body.password);
+
     if (!user) {
       return res.status(401).render("login", {
         title: "Log in",
@@ -80,9 +129,11 @@ app.post("/login", async (req, res) => {
 
     req.session.userId = user._id.toString();
     req.session.userEmail = user.email;
+
     return res.redirect(req.body.returnTo || "/dashboard");
   } catch (error) {
     console.error("Login error:", error);
+
     return res.status(500).render("login", {
       title: "Log in",
       error: "Could not log in right now.",
@@ -92,15 +143,28 @@ app.post("/login", async (req, res) => {
 });
 
 app.post("/logout", (req, res) => {
-  req.session.destroy(() => res.redirect("/login"));
+  req.session.destroy(() => {
+    res.clearCookie("gn_seo_sid");
+    res.redirect("/login");
+  });
 });
 
 app.get("/auth/shopify", (req, res) => {
   try {
     const { state, url } = buildShopifyInstallUrl(req.query.shop);
+
     req.session.shopifyOauthState = state;
-    return res.redirect(url);
+
+    req.session.save((error) => {
+      if (error) {
+        console.error("Could not save Shopify OAuth state:", error);
+        return res.status(500).send("Could not start Shopify authentication.");
+      }
+
+      return res.redirect(url);
+    });
   } catch (error) {
+    console.error("Shopify OAuth start error:", error);
     return res.status(400).send(error.message);
   }
 });
@@ -111,20 +175,44 @@ app.get("/auth/shopify/callback", async (req, res) => {
       return res.status(401).send("Invalid Shopify OAuth HMAC.");
     }
 
-    if (!req.session.shopifyOauthState || req.session.shopifyOauthState !== req.query.state) {
+    const expectedState = req.session.shopifyOauthState;
+    const receivedState = req.query.state;
+
+    if (!expectedState || expectedState !== receivedState) {
+      console.error("Invalid Shopify OAuth state.", {
+        hasExpectedState: Boolean(expectedState),
+        receivedState: Boolean(receivedState),
+        shop: req.query.shop
+      });
+
       return res.status(401).send("Invalid Shopify OAuth state.");
     }
 
-    const tokenPayload = await exchangeShopifyCode({ shop: req.query.shop, code: req.query.code });
-    const shopDoc = await saveShopifyInstall({ shop: req.query.shop, tokenPayload });
+    const tokenPayload = await exchangeShopifyCode({
+      shop: req.query.shop,
+      code: req.query.code
+    });
+
+    const shopDoc = await saveShopifyInstall({
+      shop: req.query.shop,
+      tokenPayload
+    });
 
     req.session.shopify = {
       shop: shopDoc.shop,
       scope: shopDoc.scope
     };
+
     delete req.session.shopifyOauthState;
 
-    return res.redirect("/dashboard");
+    req.session.save((error) => {
+      if (error) {
+        console.error("Could not save Shopify session:", error);
+        return res.status(500).send("Shopify authentication completed, but session could not be saved.");
+      }
+
+      return res.redirect("/dashboard");
+    });
   } catch (error) {
     console.error("Shopify auth callback error:", error);
     return res.status(500).send("Shopify authentication failed.");
@@ -144,74 +232,114 @@ app.get("/", (req, res) => {
 });
 
 app.get("/dashboard", requireAuth, async (req, res) => {
-  const ownerKey = getOwnerKey(req);
-  const recentRuns = await safelyGetRecentRuns(ownerKey);
-  const timeline = await getDashboardTimeline(ownerKey, 30);
-  const history = await getAuditHistory(ownerKey, 2);
-  const current = history[0] || null;
-  const previous = history[1] || null;
-  const insight = buildMovementInsight(current, previous);
-  const keywordSnapshots = await getKeywordDashboard(ownerKey, 50);
-  const competitorSnapshots = await getCompetitorDashboard(ownerKey, 50);
+  try {
+    const ownerKey = getOwnerKey(req);
 
-  return res.render("dashboard", {
-    title: "SEO Intelligence Dashboard",
-    recentRuns,
-    timeline,
-    insight,
-    keywordSnapshots,
-    competitorSnapshots
-  });
+    const recentRuns = await safelyGetRecentRuns(ownerKey);
+    const timeline = await getDashboardTimeline(ownerKey, 30);
+    const history = await getAuditHistory(ownerKey, 2);
+
+    const current = history[0] || null;
+    const previous = history[1] || null;
+    const insight = buildMovementInsight(current, previous);
+
+    const keywordSnapshots = await getKeywordDashboard(ownerKey, 50);
+    const competitorSnapshots = await getCompetitorDashboard(ownerKey, 50);
+
+    return res.render("dashboard", {
+      title: "SEO Intelligence Dashboard",
+      recentRuns,
+      timeline,
+      insight,
+      keywordSnapshots,
+      competitorSnapshots
+    });
+  } catch (error) {
+    console.error("Dashboard route error:", error);
+    return res.status(500).send("Could not load dashboard.");
+  }
 });
 
 app.get("/api/dashboard/timeline", requireAuth, async (req, res) => {
-  const timeline = await getDashboardTimeline(getOwnerKey(req), 30);
-  return res.json({ timeline });
+  try {
+    const timeline = await getDashboardTimeline(getOwnerKey(req), 30);
+    return res.json({ timeline });
+  } catch (error) {
+    console.error("Timeline API error:", error);
+    return res.status(500).json({ error: "Could not load timeline." });
+  }
 });
 
 app.post("/dashboard/run-scheduled-now", requireAuth, async (_req, res) => {
-  await runScheduledAudits();
-  return res.redirect("/dashboard");
+  try {
+    await runScheduledAudits();
+    return res.redirect("/dashboard");
+  } catch (error) {
+    console.error("Manual scheduled run error:", error);
+    return res.redirect("/dashboard");
+  }
 });
 
 app.post("/keywords", requireAuth, async (req, res) => {
-  await upsertTrackedKeyword({
-    ownerKey: getOwnerKey(req),
-    keyword: req.body.keyword,
-    targetUrl: req.body.targetUrl,
-    searchVolume: req.body.searchVolume,
-    cpc: req.body.cpc
-  });
-  return res.redirect("/dashboard");
+  try {
+    await upsertTrackedKeyword({
+      ownerKey: getOwnerKey(req),
+      keyword: req.body.keyword,
+      targetUrl: req.body.targetUrl,
+      searchVolume: req.body.searchVolume,
+      cpc: req.body.cpc
+    });
+
+    return res.redirect("/dashboard");
+  } catch (error) {
+    console.error("Keyword create error:", error);
+    return res.redirect("/dashboard");
+  }
 });
 
 app.post("/keywords/snapshot", requireAuth, async (req, res) => {
-  await runKeywordSnapshot(getOwnerKey(req));
-  return res.redirect("/dashboard");
+  try {
+    await runKeywordSnapshot(getOwnerKey(req));
+    return res.redirect("/dashboard");
+  } catch (error) {
+    console.error("Keyword snapshot error:", error);
+    return res.redirect("/dashboard");
+  }
 });
 
 app.post("/competitors", requireAuth, async (req, res) => {
-  const urls = String(req.body.urls || "")
-    .split("\n")
-    .map((url) => url.trim())
-    .filter(Boolean);
+  try {
+    const urls = String(req.body.urls || "")
+      .split("\n")
+      .map((url) => url.trim())
+      .filter(Boolean);
 
-  await upsertTrackedCompetitor({
-    ownerKey: getOwnerKey(req),
-    domain: req.body.domain,
-    urls
-  });
+    await upsertTrackedCompetitor({
+      ownerKey: getOwnerKey(req),
+      domain: req.body.domain,
+      urls
+    });
 
-  return res.redirect("/dashboard");
+    return res.redirect("/dashboard");
+  } catch (error) {
+    console.error("Competitor create error:", error);
+    return res.redirect("/dashboard");
+  }
 });
 
 app.post("/competitors/snapshot", requireAuth, async (req, res) => {
-  await runCompetitorSnapshot(getOwnerKey(req));
-  return res.redirect("/dashboard");
+  try {
+    await runCompetitorSnapshot(getOwnerKey(req));
+    return res.redirect("/dashboard");
+  } catch (error) {
+    console.error("Competitor snapshot error:", error);
+    return res.redirect("/dashboard");
+  }
 });
 
 app.get("/audit", requireAuth, async (req, res) => {
   const recentRuns = await safelyGetRecentRuns(getOwnerKey(req));
+
   return res.render("index", {
     title: "Gaming Nectar Site Quality Auditor",
     error: null,
@@ -226,6 +354,7 @@ app.get("/audit/:id", requireAuth, async (req, res) => {
 
     if (!auditRun) {
       const recentRuns = await safelyGetRecentRuns(ownerKey);
+
       return res.status(404).render("index", {
         title: "Gaming Nectar Site Quality Auditor",
         error: "Audit run not found.",
@@ -233,8 +362,8 @@ app.get("/audit/:id", requireAuth, async (req, res) => {
       });
     }
 
-    const todos = await getTodosForAuditRun(req.params.id);
-    const todoSummary = await getTodoSummaryForAuditRun(req.params.id);
+    const todos = await getTodosForAuditRun(req.params.id, ownerKey);
+    const todoSummary = await getTodoSummaryForAuditRun(req.params.id, ownerKey);
 
     return res.render("results", {
       title: "Saved Audit Results",
@@ -247,7 +376,9 @@ app.get("/audit/:id", requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error("Saved audit route error:", error);
+
     const recentRuns = await safelyGetRecentRuns(getOwnerKey(req));
+
     return res.status(500).render("index", {
       title: "Gaming Nectar Site Quality Auditor",
       error: "Could not load the saved audit.",
@@ -265,7 +396,13 @@ app.post("/audit", requireAuth, async (req, res) => {
       const siteUrl = String(req.body.siteUrl || "").trim();
       const maxUrls = Number(req.body.maxUrls || 50);
 
-      if (!siteUrl) return renderIndexWithError(req, res, "Please enter a site URL before running a full-site crawl.");
+      if (!siteUrl) {
+        return renderIndexWithError(
+          req,
+          res,
+          "Please enter a site URL before running a full-site crawl."
+        );
+      }
 
       const siteAudit = await auditSiteFromSitemap(siteUrl, {
         maxUrls: Math.min(Math.max(maxUrls, 5), 100)
@@ -274,13 +411,21 @@ app.post("/audit", requireAuth, async (req, res) => {
       const auditRun = await saveAuditRun({
         ownerKey,
         type: "site",
-        input: { siteUrl, maxUrls },
+        input: {
+          siteUrl,
+          maxUrls
+        },
         results: siteAudit.results,
         siteAudit,
         competitorAnalysis: null
       });
 
-      const snapshot = buildAuditSnapshot({ ownerKey, siteUrl, auditRun });
+      const snapshot = buildAuditSnapshot({
+        ownerKey,
+        siteUrl,
+        auditRun
+      });
+
       await saveAuditSnapshot(snapshot);
 
       return res.redirect(`/audit/${auditRun._id.toString()}`);
@@ -288,22 +433,46 @@ app.post("/audit", requireAuth, async (req, res) => {
 
     if (mode === "competitor") {
       const primaryUrl = String(req.body.primaryUrl || "").trim();
+
       const competitorUrls = String(req.body.competitorUrls || "")
         .split("\n")
         .map((url) => url.trim())
         .filter(Boolean)
         .slice(0, 5);
 
-      if (!primaryUrl) return renderIndexWithError(req, res, "Please enter your page URL before running competitor analysis.");
-      if (!competitorUrls.length) return renderIndexWithError(req, res, "Please enter at least one competitor URL.");
+      if (!primaryUrl) {
+        return renderIndexWithError(
+          req,
+          res,
+          "Please enter your page URL before running competitor analysis."
+        );
+      }
 
-      const competitorAnalysis = await auditWithCompetitors(primaryUrl, competitorUrls);
-      const results = [competitorAnalysis.primary, ...competitorAnalysis.competitors];
+      if (!competitorUrls.length) {
+        return renderIndexWithError(
+          req,
+          res,
+          "Please enter at least one competitor URL."
+        );
+      }
+
+      const competitorAnalysis = await auditWithCompetitors(
+        primaryUrl,
+        competitorUrls
+      );
+
+      const results = [
+        competitorAnalysis.primary,
+        ...competitorAnalysis.competitors
+      ];
 
       const auditRun = await saveAuditRun({
         ownerKey,
         type: "competitor",
-        input: { primaryUrl, competitorUrls },
+        input: {
+          primaryUrl,
+          competitorUrls
+        },
         results,
         siteAudit: null,
         competitorAnalysis
@@ -318,13 +487,18 @@ app.post("/audit", requireAuth, async (req, res) => {
       .filter(Boolean)
       .slice(0, 10);
 
-    if (!urls.length) return renderIndexWithError(req, res, "Please enter at least one URL.");
+    if (!urls.length) {
+      return renderIndexWithError(req, res, "Please enter at least one URL.");
+    }
 
     const results = await auditMultipleUrls(urls);
+
     const auditRun = await saveAuditRun({
       ownerKey,
       type: "standard",
-      input: { urls },
+      input: {
+        urls
+      },
       results,
       siteAudit: null,
       competitorAnalysis: null
@@ -333,7 +507,12 @@ app.post("/audit", requireAuth, async (req, res) => {
     return res.redirect(`/audit/${auditRun._id.toString()}`);
   } catch (error) {
     console.error("Audit route error:", error);
-    return renderIndexWithError(req, res, "Something went wrong while running the audit. Check the Render logs for details.");
+
+    return renderIndexWithError(
+      req,
+      res,
+      "Something went wrong while running the audit. Check the Render logs for details."
+    );
   }
 });
 
@@ -357,6 +536,8 @@ app.post("/todos", requireAuth, async (req, res) => {
       implementationHint: req.body.implementationHint,
       expectedImpact: req.body.expectedImpact,
       effort: req.body.effort,
+      status: req.body.status || "new",
+      priority: req.body.priority || req.body.severity,
       dueDate: req.body.dueDate,
       plannedFor: req.body.plannedFor,
       source: req.body.source || "manual",
@@ -376,7 +557,9 @@ app.post("/todos/:id/status", requireAuth, async (req, res) => {
       todoId: req.params.id,
       status: req.body.status,
       dueDate: req.body.dueDate,
-      plannedFor: req.body.plannedFor
+      plannedFor: req.body.plannedFor,
+      notes: req.body.notes,
+      ownerKey: getOwnerKey(req)
     });
 
     return res.redirect(req.body.returnTo || "/dashboard");
@@ -388,6 +571,7 @@ app.post("/todos/:id/status", requireAuth, async (req, res) => {
 
 app.get("/health", async (_req, res) => {
   let mongo = "unknown";
+
   try {
     await ensureIndexes();
     mongo = "connected";
@@ -395,11 +579,18 @@ app.get("/health", async (_req, res) => {
     mongo = `error: ${error.message}`;
   }
 
-  return res.status(200).json({ status: "ok", app: "Gaming Nectar Site Quality Auditor", mongo });
+  return res.status(200).json({
+    status: "ok",
+    app: "Gaming Nectar Site Quality Auditor",
+    mongo
+  });
 });
 
 app.use(async (req, res) => {
-  const recentRuns = res.locals.auth.isLoggedIn ? await safelyGetRecentRuns(getOwnerKey(req)) : [];
+  const recentRuns = res.locals.auth.isLoggedIn
+    ? await safelyGetRecentRuns(getOwnerKey(req))
+    : [];
+
   return res.status(404).render("index", {
     title: "Gaming Nectar Site Quality Auditor",
     error: `The page "${req.path}" does not exist. Use the audit form below.`,
@@ -409,13 +600,19 @@ app.use(async (req, res) => {
 
 async function renderIndexWithError(req, res, error) {
   const recentRuns = await safelyGetRecentRuns(getOwnerKey(req));
-  return res.render("index", { title: "Gaming Nectar Site Quality Auditor", error, recentRuns });
+
+  return res.render("index", {
+    title: "Gaming Nectar Site Quality Auditor",
+    error,
+    recentRuns
+  });
 }
 
 async function safelyGetRecentRuns(ownerKey) {
   try {
     return await getRecentAuditRuns(10, ownerKey);
-  } catch {
+  } catch (error) {
+    console.error("Could not load recent audit runs:", error);
     return [];
   }
 }
