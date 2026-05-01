@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import { getCollections } from "../db/mongodb.js";
 
 export async function saveAuditRun({
+  ownerKey = "public:anonymous",
   type,
   input,
   results,
@@ -9,16 +10,11 @@ export async function saveAuditRun({
   competitorAnalysis = null
 }) {
   const { auditRuns } = await getCollections();
-
   const createdAt = new Date();
-
-  const summary = buildSummary({
-    results,
-    siteAudit,
-    competitorAnalysis
-  });
+  const summary = buildSummary({ results, siteAudit, competitorAnalysis });
 
   const document = {
+    ownerKey,
     type,
     input,
     results,
@@ -37,35 +33,124 @@ export async function saveAuditRun({
   };
 }
 
-export async function getRecentAuditRuns(limit = 20) {
+export async function getRecentAuditRuns(limit = 20, ownerKey = null) {
   const { auditRuns } = await getCollections();
+  const query = ownerKey ? { ownerKey } : {};
 
   return auditRuns
-    .find(
-      {},
-      {
-        projection: {
-          results: 0,
-          siteAudit: 0,
-          competitorAnalysis: 0
-        }
+    .find(query, {
+      projection: {
+        results: 0,
+        siteAudit: 0,
+        competitorAnalysis: 0
       }
-    )
+    })
     .sort({ createdAt: -1 })
-    .limit(limit)
+    .limit(Number(limit) || 20)
     .toArray();
 }
 
-export async function getAuditRunById(id) {
+export async function getAuditRunById(id, ownerKey = null) {
   const { auditRuns } = await getCollections();
 
   if (!ObjectId.isValid(id)) {
     return null;
   }
 
-  return auditRuns.findOne({
+  const query = {
     _id: new ObjectId(id)
+  };
+
+  if (ownerKey) {
+    query.ownerKey = ownerKey;
+  }
+
+  return auditRuns.findOne(query);
+}
+
+export async function deleteAuditRunById(id, ownerKey = null) {
+  const { auditRuns, auditTodos } = await getCollections();
+
+  if (!ObjectId.isValid(id)) {
+    return {
+      deletedCount: 0
+    };
+  }
+
+  const query = {
+    _id: new ObjectId(id)
+  };
+
+  if (ownerKey) {
+    query.ownerKey = ownerKey;
+  }
+
+  const result = await auditRuns.deleteOne(query);
+
+  if (result.deletedCount) {
+    await auditTodos.deleteMany({
+      auditRunId: id,
+      ...(ownerKey ? { ownerKey } : {})
+    });
+  }
+
+  return result;
+}
+
+export async function getLatestAuditRun(ownerKey = null) {
+  const { auditRuns } = await getCollections();
+  const query = ownerKey ? { ownerKey } : {};
+
+  return auditRuns.findOne(query, {
+    sort: {
+      createdAt: -1
+    }
   });
+}
+
+export async function getAuditRunStats(ownerKey = null) {
+  const { auditRuns } = await getCollections();
+  const query = ownerKey ? { ownerKey } : {};
+
+  const [latestRun, totalRuns, averages] = await Promise.all([
+    getLatestAuditRun(ownerKey),
+    auditRuns.countDocuments(query),
+    auditRuns
+      .aggregate([
+        {
+          $match: query
+        },
+        {
+          $group: {
+            _id: null,
+            averageScore: {
+              $avg: "$summary.averageScore"
+            },
+            averageIssues: {
+              $avg: "$summary.issueCount"
+            },
+            totalPages: {
+              $sum: "$summary.pageCount"
+            },
+            totalIssues: {
+              $sum: "$summary.issueCount"
+            }
+          }
+        }
+      ])
+      .toArray()
+  ]);
+
+  const aggregate = averages[0] || {};
+
+  return {
+    totalRuns,
+    latestRun,
+    averageScore: roundOneDecimal(aggregate.averageScore || 0),
+    averageIssues: roundOneDecimal(aggregate.averageIssues || 0),
+    totalPages: Number(aggregate.totalPages || 0),
+    totalIssues: Number(aggregate.totalIssues || 0)
+  };
 }
 
 function buildSummary({ results, siteAudit, competitorAnalysis }) {
@@ -94,8 +179,7 @@ function buildSummary({ results, siteAudit, competitorAnalysis }) {
   const finalCategoryAverages = {};
 
   Object.entries(categoryAverages).forEach(([category, value]) => {
-    finalCategoryAverages[category] =
-      Math.round((value.total / value.count) * 10) / 10;
+    finalCategoryAverages[category] = roundOneDecimal(value.total / value.count);
   });
 
   return {
@@ -112,11 +196,22 @@ function buildSummary({ results, siteAudit, competitorAnalysis }) {
 }
 
 function average(values) {
-  const cleanValues = values.filter((value) => typeof value === "number");
+  const cleanValues = values
+    .map(Number)
+    .filter((value) => Number.isFinite(value));
 
   if (!cleanValues.length) return 0;
 
   const total = cleanValues.reduce((sum, value) => sum + value, 0);
+  return roundOneDecimal(total / cleanValues.length);
+}
 
-  return Math.round((total / cleanValues.length) * 10) / 10;
+function roundOneDecimal(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+
+  return Math.round(number * 10) / 10;
 }

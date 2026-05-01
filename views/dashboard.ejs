@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero compact-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Live intelligence</p>
+          <h1>SEO Intelligence Dashboard</h1>
+          <p>Trace 12-hour audit movement, competitor changes, keyword value, and planned action impact.</p>
+          <div class="hero-pills">
+            <span>12-hour snapshots</span>
+            <span>Keyword value</span>
+            <span>Competitors</span>
+            <span>To-dos</span>
+          </div>
+        </div>
+        <div class="hero-panel">
+          <span class="panel-number"><%= timeline?.length || 0 %></span>
+          <span class="panel-label">Snapshots</span>
+          <form method="POST" action="/logout">
+            <button type="submit">Log out</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="card knowledge-card insight-<%= insight.status %>">
+        <p class="eyebrow">What changed?</p>
+        <h2><%= insight.title %></h2>
+        <p><%= insight.message %></p>
+        <% if (insight.actions?.length) { %>
+          <ul>
+            <% insight.actions.forEach(function(action) { %>
+              <li><%= action %></li>
+            <% }) %>
+          </ul>
+        <% } %>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <p class="eyebrow">Traceability</p>
+          <h2>Effectiveness over time</h2>
+          <p>Each point is an audit snapshot. Scheduled checks run every 12 hours when the scheduler is enabled.</p>
+        </div>
+        <canvas id="effectivenessChart" height="120"></canvas>
+      </section>
+
+      <section class="tool-grid three-tools">
+        <article class="card card-accent">
+          <div class="card-heading">
+            <p class="eyebrow">Manual control</p>
+            <h2>Run now</h2>
+            <p>Run the scheduled audit workflow manually.</p>
+          </div>
+          <form method="POST" action="/dashboard/run-scheduled-now">
+            <button type="submit">Run scheduled checks now</button>
+          </form>
+        </article>
+
+        <article class="card">
+          <div class="card-heading">
+            <p class="eyebrow">Audit tools</p>
+            <h2>Run audit</h2>
+            <p>Open the manual page, site and competitor audit forms.</p>
+          </div>
+          <a class="button-link" href="/audit">Open audit tools</a>
+        </article>
+
+        <article class="card card-dark">
+          <div class="card-heading">
+            <p class="eyebrow">Latest value</p>
+            <h2>Keyword value</h2>
+            <% const latestKeyword = keywordSnapshots && keywordSnapshots[0]; %>
+            <p>
+              <% if (latestKeyword) { %>
+                Latest tracked keyword: <strong><%= latestKeyword.keyword %></strong>, estimated paid value £<%= latestKeyword.equivalentPaidValue || 0 %>.
+              <% } else { %>
+                Add keywords to estimate organic value against paid Google spend.
+              <% } %>
+            </p>
+          </div>
+        </article>
+      </section>
+
+      <section class="tool-grid two-tools">
+        <article class="card">
+          <div class="card-heading">
+            <p class="eyebrow">Keyword tracking</p>
+            <h2>Add keyword</h2>
+          </div>
+          <form method="POST" action="/keywords">
+            <label for="keyword">Keyword</label>
+            <input id="keyword" name="keyword" type="text" placeholder="pokemon cards uk" required />
+
+            <label for="targetUrl">Target URL</label>
+            <input id="targetUrl" name="targetUrl" type="text" placeholder="https://www.gamingnectar.com/collections/..." />
+
+            <label for="searchVolume">Search volume</label>
+            <input id="searchVolume" name="searchVolume" type="number" min="0" />
+
+            <label for="cpc">CPC / Google spend equivalent</label>
+            <input id="cpc" name="cpc" type="number" min="0" step="0.01" />
+
+            <button type="submit">Track keyword</button>
+          </form>
+          <form method="POST" action="/keywords/snapshot" class="inline-form">
+            <button type="submit">Snapshot keywords</button>
+          </form>
+        </article>
+
+        <article class="card">
+          <div class="card-heading">
+            <p class="eyebrow">Competitor tracking</p>
+            <h2>Add competitor</h2>
+          </div>
+          <form method="POST" action="/competitors">
+            <label for="domain">Competitor domain</label>
+            <input id="domain" name="domain" type="text" placeholder="competitor.com" required />
+
+            <label for="urls">Tracked URLs, one per line</label>
+            <textarea id="urls" name="urls" rows="5" placeholder="https://competitor.com/product-a"></textarea>
+
+            <button type="submit">Track competitor</button>
+          </form>
+          <form method="POST" action="/competitors/snapshot" class="inline-form">
+            <button type="submit">Snapshot competitors</button>
+          </form>
+        </article>
+      </section>
+
+      <% if (recentRuns && recentRuns.length) { %>
+        <section class="recent-runs">
+          <div class="section-heading">
+            <p class="eyebrow">History</p>
+            <h2>Recent audit runs</h2>
+          </div>
+          <div class="recent-run-list">
+            <% recentRuns.forEach(function(run) { %>
+              <a class="recent-run-card" href="/audit/<%= run._id %>">
+                <div>
+                  <span><%= run.type %></span>
+                  <strong><%= run.summary?.averageScore || 0 %>/10</strong>
+                </div>
+                <p><%= run.summary?.pageCount || 0 %> pages · <%= run.summary?.issueCount || 0 %> issues</p>
+                <small><%= new Date(run.createdAt).toLocaleString("en-GB") %></small>
+              </a>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
+    </main>
+
+    <script>
+      window.__DASHBOARD_TIMELINE__ = <%- JSON.stringify(timeline || []) %>;
+    </script>
+    <script src="/dashboard.js"></script>
+  </body>
+</html>

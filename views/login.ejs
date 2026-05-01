@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page auth-page">
+      <section class="hero compact-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Gaming Nectar Intelligence</p>
+          <h1>Log in</h1>
+          <p>Access your SEO, GEO, AEO, keyword and competitor intelligence dashboard.</p>
+        </div>
+      </section>
+
+      <% if (error) { %>
+        <div class="error"><%= error %></div>
+      <% } %>
+
+      <section class="tool-grid two-tools">
+        <article class="card card-accent">
+          <div class="card-heading">
+            <p class="eyebrow">Dashboard login</p>
+            <h2>Email login</h2>
+          </div>
+          <form method="POST" action="/login">
+            <input type="hidden" name="returnTo" value="<%= returnTo %>" />
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required />
+
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" required />
+
+            <button type="submit">Log in</button>
+          </form>
+        </article>
+
+        <article class="card card-dark">
+          <div class="card-heading">
+            <p class="eyebrow">Shopify installed app</p>
+            <h2>Connect Shopify</h2>
+            <p>If a merchant accesses this as an installed Shopify app, they authenticate through Shopify OAuth.</p>
+          </div>
+          <form method="GET" action="/auth/shopify">
+            <label for="shop">Shopify shop domain</label>
+            <input id="shop" name="shop" type="text" placeholder="your-store.myshopify.com" />
+            <button type="submit">Connect Shopify store</button>
+          </form>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
