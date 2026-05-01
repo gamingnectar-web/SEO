@@ -3,987 +3,436 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title %></title>
+    <title><%= title || "Audit Results" %></title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
 
   <body>
-    <main class="page">
-      <div class="topbar">
-        <div>
-          <p class="eyebrow">Gaming Nectar Intelligence</p>
-          <h1>
-            <%= siteAudit ? "Full Site Dashboard" : competitorAnalysis ? "Competitor Dashboard" : "Audit Dashboard" %>
-          </h1>
-        </div>
+    <main class="app-shell">
+      <aside class="side-nav">
+        <div class="brand">Site Quality Auditor</div>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todos">To-dos</a>
+        <a href="/keywords">Keywords</a>
+        <a class="active" href="/audit">Audits</a>
 
-        <a class="back-link" href="/">Run another audit</a>
-      </div>
+        <form method="POST" action="/logout" class="side-logout">
+          <button type="submit">Log out</button>
+        </form>
+      </aside>
 
-      <% if (auditRun) { %>
-        <section class="saved-run-banner">
-          <span>Saved audit</span>
-          <p>
-            This report is saved in MongoDB. Run ID:
-            <strong><%= auditRun._id %></strong>
-          </p>
-        </section>
-      <% } %>
+      <section class="app-main">
+        <%
+          const safeResults = Array.isArray(results) ? results : [];
+          const summary = auditRun?.summary || siteAudit?.summary || {};
+          const categoryAverages = summary.categoryAverages || {};
+          const issueCount = summary.issueCount ?? safeResults.reduce((sum, page) => sum + (Array.isArray(page.issues) ? page.issues.length : 0), 0);
+          const pageCount = summary.pageCount ?? safeResults.length;
+          const averageScore = summary.averageScore ?? (
+            safeResults.length
+              ? Math.round((safeResults.reduce((sum, page) => sum + Number(page.overallScore || 0), 0) / safeResults.length) * 10) / 10
+              : 0
+          );
 
-      <% if (siteAudit) { %>
-        <section class="dashboard-summary">
-          <div class="summary-card hero-score">
-            <span>Average score</span>
-            <strong><%= siteAudit.summary.averageScore %>/10</strong>
-            <p><%= siteAudit.summary.totalPages %> pages audited</p>
-          </div>
+          const formatDate = function(value) {
+            if (!value) return "—";
+            try {
+              return new Date(value).toLocaleString("en-GB");
+            } catch {
+              return "—";
+            }
+          };
 
-          <div class="summary-card">
-            <span>Total issues</span>
-            <strong><%= siteAudit.summary.totalIssues %></strong>
-            <p>Across all audited URLs</p>
-          </div>
+          const scoreClass = function(score) {
+            const number = Number(score || 0);
+            if (number >= 8) return "score-good";
+            if (number >= 6) return "score-warning";
+            return "score-danger";
+          };
 
-          <div class="summary-card">
-            <span>Discovered URLs</span>
-            <strong><%= siteAudit.discoveredCount %></strong>
-            <p>From sitemap crawl</p>
-          </div>
-        </section>
-      <% } %>
+          const getPageTitle = function(page) {
+            return page.title || page.h1 || page.url || "Untitled page";
+          };
 
-      <% if (competitorAnalysis) { %>
-        <section class="dashboard-summary">
-          <div class="summary-card hero-score">
-            <span>Your page</span>
-            <strong><%= competitorAnalysis.primaryScore %>/10</strong>
-            <p><%= competitorAnalysis.primaryUrl %></p>
-          </div>
+          const getPageUrl = function(page) {
+            return page.url || page.finalUrl || "";
+          };
 
-          <div class="summary-card">
-            <span>Competitors</span>
-            <strong><%= competitorAnalysis.competitors.length %></strong>
-            <p>Compared head-to-head</p>
-          </div>
-        </section>
-      <% } %>
+          const getIssueSeverity = function(issue) {
+            return issue.severity || issue.priority || "medium";
+          };
 
-      <% if (todoSummary) { %>
-        <section class="todo-summary-strip">
+          const getIssueCategory = function(issue) {
+            return issue.category || issue.type || "general";
+          };
+
+          const allIssues = safeResults.flatMap(function(page) {
+            return (Array.isArray(page.issues) ? page.issues : []).map(function(issue) {
+              return {
+                ...issue,
+                pageUrl: getPageUrl(page),
+                pageTitle: getPageTitle(page)
+              };
+            });
+          });
+
+          const priorityIssues = allIssues
+            .slice()
+            .sort(function(a, b) {
+              const weights = { critical: 4, high: 3, medium: 2, low: 1 };
+              return (weights[getIssueSeverity(b)] || 0) - (weights[getIssueSeverity(a)] || 0);
+            })
+            .slice(0, 20);
+
+          const weakestPages = safeResults
+            .slice()
+            .sort(function(a, b) {
+              return Number(a.overallScore || 0) - Number(b.overallScore || 0);
+            })
+            .slice(0, 10);
+
+          const categories = [
+            "technical",
+            "seo",
+            "geo",
+            "linking",
+            "content",
+            "accessibility",
+            "performance",
+            "conversion",
+            "trust",
+            "merchandising"
+          ];
+        %>
+
+        <header class="app-header">
           <div>
-            <span>Total to-dos</span>
-            <strong><%= todoSummary.total %></strong>
-          </div>
-          <div>
-            <span>Open</span>
-            <strong><%= todoSummary.open %></strong>
-          </div>
-          <div>
-            <span>In progress</span>
-            <strong><%= todoSummary.inProgress %></strong>
-          </div>
-          <div>
-            <span>Done</span>
-            <strong><%= todoSummary.done %></strong>
-          </div>
-        </section>
-      <% } %>
-
-      <nav class="tabs" data-tabs>
-        <button class="active" data-tab-button="overview">Overview</button>
-        <button data-tab-button="geo">GEO / AEO</button>
-        <button data-tab-button="seo">SEO</button>
-        <button data-tab-button="technical">Technical</button>
-        <button data-tab-button="linking">Linking</button>
-        <button data-tab-button="content">Content</button>
-        <button data-tab-button="commercial">Commercial</button>
-        <button data-tab-button="pages">Pages</button>
-        <button data-tab-button="todos">To-dos</button>
-
-        <% if (competitorAnalysis) { %>
-          <button data-tab-button="competitors">Competitors</button>
-        <% } %>
-      </nav>
-
-      <section class="tab-panel active" data-tab-panel="overview">
-        <div class="section-heading">
-          <p class="eyebrow">Dashboard</p>
-          <h2>Overall performance</h2>
-        </div>
-
-        <div class="category-grid">
-          <% const overviewScores = siteAudit ? siteAudit.summary.categoryAverages : averageCategories(results); %>
-          <% Object.entries(overviewScores).forEach(function(entry) { %>
-            <div class="category-item">
-              <div>
-                <span><%= formatCategory(entry[0]) %></span>
-                <div class="score-bar">
-                  <i style="width: <%= entry[1] * 10 %>%"></i>
-                </div>
-              </div>
-              <strong><%= entry[1] %>/10</strong>
-            </div>
-          <% }) %>
-        </div>
-
-        <% if (siteAudit) { %>
-          <div class="split-grid">
-            <section class="panel">
-              <h3>Weakest pages</h3>
-              <% siteAudit.summary.weakestPages.forEach(function(page) { %>
-                <article class="compact-page-row">
-                  <strong><%= page.overallScore %>/10</strong>
-                  <div>
-                    <p><%= page.title || "Untitled page" %></p>
-                    <small><%= page.url %></small>
-                  </div>
-                </article>
-              <% }) %>
-            </section>
-
-            <section class="panel">
-              <h3>Priority issues</h3>
-              <% siteAudit.summary.priorityIssues.forEach(function(issue) { %>
-                <article class="compact-issue-row">
-                  <span><%= formatCategory(issue.category) %></span>
-                  <p><%= issue.message %></p>
-                  <small><%= issue.url %></small>
-                </article>
-              <% }) %>
-            </section>
-          </div>
-        <% } %>
-      </section>
-
-      <% ["geo", "seo", "technical", "linking", "content"].forEach(function(category) { %>
-        <section class="tab-panel" data-tab-panel="<%= category %>">
-          <div class="section-heading">
-            <p class="eyebrow">Deep dive</p>
-            <h2><%= category === "geo" ? "GEO / AEO / Schema" : formatCategory(category) %> analysis</h2>
-          </div>
-
-          <% const improvementPlan = siteAudit?.improvementPlans?.[category] || []; %>
-
-          <% if (improvementPlan.length) { %>
-            <section class="improvement-panel">
-              <div class="section-heading compact">
-                <p class="eyebrow">Priority improvements</p>
-                <h3>What to improve first</h3>
-              </div>
-
-              <div class="improvement-list">
-                <% improvementPlan.forEach(function(item) { %>
-                  <article class="improvement-card">
-                    <div class="improvement-head">
-                      <div>
-                        <span class="priority-pill"><%= item.priority.label %></span>
-                        <h4><%= item.checkName %></h4>
-                      </div>
-
-                      <strong><%= item.count %> pages</strong>
-                    </div>
-
-                    <div class="improvement-context">
-                      <div>
-                        <span>Why it matters</span>
-                        <p><%= item.context.why %></p>
-                      </div>
-
-                      <div>
-                        <span>How to improve</span>
-                        <p><%= item.context.how %></p>
-                      </div>
-
-                      <div>
-                        <span>Example</span>
-                        <p><%= item.context.example %></p>
-                      </div>
-                    </div>
-
-                    <% if (item.affectedPages.length) { %>
-                      <details class="affected-pages">
-                        <summary>View affected pages</summary>
-
-                        <ul>
-                          <% item.affectedPages.forEach(function(page) { %>
-                            <li>
-                              <strong><%= page.title %></strong>
-                              <small><%= page.url %></small>
-                              <% if (page.evidence) { %>
-                                <em>Evidence: <%= page.evidence %></em>
-                              <% } %>
-                            </li>
-                          <% }) %>
-                        </ul>
-                      </details>
-                    <% } %>
-                  </article>
-                <% }) %>
-              </div>
-            </section>
-          <% } %>
-
-          <div class="deep-list">
-            <% results.forEach(function(result) { %>
-              <article class="deep-card">
-                <div class="deep-card-head">
-                  <div>
-                    <p class="url"><%= result.url %></p>
-                    <h3><%= result.title || "Untitled page" %></h3>
-                  </div>
-
-                  <strong><%= result.categoryScores[category] %>/10</strong>
-                </div>
-
-                <div class="checks-list">
-                  <% (result.categoryDetails[category] || []).forEach(function(check) { %>
-                    <% const context = getContext(category, check.name); %>
-                    <button
-                      type="button"
-                      class="check-row check-<%= check.status %>"
-                      data-open-check-modal
-                      data-audit-run-id="<%= auditRun ? auditRun._id : '' %>"
-                      data-return-to="<%= auditRun ? '/audit/' + auditRun._id : '/' %>"
-                      data-page-url="<%= result.url %>"
-                      data-page-title="<%= result.title || 'Untitled page' %>"
-                      data-category="<%= category %>"
-                      data-check-name="<%= check.name %>"
-                      data-status="<%= check.status %>"
-                      data-severity="<%= check.severity %>"
-                      data-message="<%= check.message %>"
-                      data-recommendation="<%= check.recommendation || '' %>"
-                      data-evidence="<%= check.evidence || '' %>"
-                      data-why="<%= check.why || context.why %>"
-                      data-how="<%= check.how || context.how %>"
-                      data-example="<%= check.example || context.example %>"
-                      data-business-impact="<%= check.businessImpact || '' %>"
-                      data-implementation-hint="<%= check.implementationHint || '' %>"
-                      data-expected-impact="<%= check.expectedImpact || '' %>"
-                      data-effort="<%= check.effort || '' %>"
-                    >
-                      <div>
-                        <strong><%= check.name %></strong>
-                        <p><%= check.message %></p>
-
-                        <% if (check.evidence) { %>
-                          <small>Evidence: <%= check.evidence %></small>
-                        <% } %>
-                      </div>
-
-                      <span class="check-status-pill"><%= check.status %></span>
-                      <span class="check-arrow">›</span>
-                    </button>
-                  <% }) %>
-                </div>
-              </article>
-            <% }) %>
-          </div>
-        </section>
-      <% }) %>
-
-      <section class="tab-panel" data-tab-panel="commercial">
-        <div class="section-heading">
-          <p class="eyebrow">Revenue quality</p>
-          <h2>Conversion, trust and merchandising</h2>
-        </div>
-
-        <% const commercialPlans = [
-          ...(siteAudit?.improvementPlans?.conversion || []),
-          ...(siteAudit?.improvementPlans?.trust || []),
-          ...(siteAudit?.improvementPlans?.merchandising || [])
-        ]; %>
-
-        <% if (commercialPlans.length) { %>
-          <section class="improvement-panel">
-            <div class="section-heading compact">
-              <p class="eyebrow">Priority improvements</p>
-              <h3>What to improve first commercially</h3>
-            </div>
-
-            <div class="improvement-list">
-              <% commercialPlans.slice(0, 12).forEach(function(item) { %>
-                <article class="improvement-card">
-                  <div class="improvement-head">
-                    <div>
-                      <span class="priority-pill"><%= item.priority.label %></span>
-                      <h4><%= item.checkName %></h4>
-                    </div>
-
-                    <strong><%= item.count %> pages</strong>
-                  </div>
-
-                  <div class="improvement-context">
-                    <div>
-                      <span>Why it matters</span>
-                      <p><%= item.context.why %></p>
-                    </div>
-
-                    <div>
-                      <span>How to improve</span>
-                      <p><%= item.context.how %></p>
-                    </div>
-
-                    <div>
-                      <span>Example</span>
-                      <p><%= item.context.example %></p>
-                    </div>
-                  </div>
-                </article>
-              <% }) %>
-            </div>
-          </section>
-        <% } %>
-
-        <% ["conversion", "trust", "merchandising"].forEach(function(category) { %>
-          <section class="panel spaced-panel">
-            <h3><%= formatCategory(category) %></h3>
-
-            <div class="deep-list">
-              <% results.forEach(function(result) { %>
-                <article class="deep-card">
-                  <div class="deep-card-head">
-                    <div>
-                      <p class="url"><%= result.url %></p>
-                      <h3><%= result.title || "Untitled page" %></h3>
-                    </div>
-
-                    <strong><%= result.categoryScores[category] %>/10</strong>
-                  </div>
-
-                  <div class="checks-list">
-                    <% (result.categoryDetails[category] || []).forEach(function(check) { %>
-                      <% const context = getContext(category, check.name); %>
-                      <button
-                        type="button"
-                        class="check-row check-<%= check.status %>"
-                        data-open-check-modal
-                        data-audit-run-id="<%= auditRun ? auditRun._id : '' %>"
-                        data-return-to="<%= auditRun ? '/audit/' + auditRun._id : '/' %>"
-                        data-page-url="<%= result.url %>"
-                        data-page-title="<%= result.title || 'Untitled page' %>"
-                        data-category="<%= category %>"
-                        data-check-name="<%= check.name %>"
-                        data-status="<%= check.status %>"
-                        data-severity="<%= check.severity %>"
-                        data-message="<%= check.message %>"
-                        data-recommendation="<%= check.recommendation || '' %>"
-                        data-evidence="<%= check.evidence || '' %>"
-                        data-why="<%= check.why || context.why %>"
-                        data-how="<%= check.how || context.how %>"
-                        data-example="<%= check.example || context.example %>"
-                        data-business-impact="<%= check.businessImpact || '' %>"
-                        data-implementation-hint="<%= check.implementationHint || '' %>"
-                        data-expected-impact="<%= check.expectedImpact || '' %>"
-                        data-effort="<%= check.effort || '' %>"
-                      >
-                        <div>
-                          <strong><%= check.name %></strong>
-                          <p><%= check.message %></p>
-
-                          <% if (check.evidence) { %>
-                            <small>Evidence: <%= check.evidence %></small>
-                          <% } %>
-                        </div>
-
-                        <span class="check-status-pill"><%= check.status %></span>
-                        <span class="check-arrow">›</span>
-                      </button>
-                    <% }) %>
-                  </div>
-                </article>
-              <% }) %>
-            </div>
-          </section>
-        <% }) %>
-      </section>
-
-      <section class="tab-panel" data-tab-panel="pages">
-        <div class="section-heading">
-          <p class="eyebrow">Page-level evidence</p>
-          <h2>All audited pages</h2>
-        </div>
-
-        <section class="results-list">
-          <% results.forEach(function(result) { %>
-            <article class="result-card">
-              <div class="result-header">
-                <div>
-                  <p class="url"><%= result.url %></p>
-                  <h2><%= result.title || "Untitled page" %></h2>
-
-                  <% if (result.metaDescription) { %>
-                    <p class="meta-description"><%= result.metaDescription %></p>
-                  <% } %>
-                </div>
-
-                <div class="score-box <%= scoreClass(result.overallScore) %>">
-                  <span class="score"><%= result.overallScore %></span>
-                  <span class="score-total">/10</span>
-                  <span class="score-label"><%= scoreLabel(result.overallScore) %></span>
-                </div>
-              </div>
-
-              <div class="insight-strip">
-                <% result.insights.forEach(function(insight) { %>
-                  <div>
-                    <span><%= insight.label %></span>
-                    <strong><%= insight.value %></strong>
-                    <small><%= insight.note %></small>
-                  </div>
-                <% }) %>
-              </div>
-
-              <details class="details">
-                <summary>Issues and recommendations</summary>
-
-                <% if (result.issues.length) { %>
-                  <ul class="issue-list">
-                    <% result.issues.forEach(function(issue) { %>
-                      <li class="severity-<%= issue.severity %>">
-                        <div>
-                          <span class="issue-category"><%= formatCategory(issue.category) %></span>
-                          <strong><%= issue.severity %></strong>
-                        </div>
-
-                        <p class="issue-message"><%= issue.message %></p>
-
-                        <% if (issue.recommendation) { %>
-                          <p class="issue-recommendation"><%= issue.recommendation %></p>
-                        <% } %>
-                      </li>
-                    <% }) %>
-                  </ul>
-                <% } else { %>
-                  <p>No major issues detected.</p>
-                <% } %>
-              </details>
-            </article>
-          <% }) %>
-        </section>
-      </section>
-
-      <section class="tab-panel" data-tab-panel="todos">
-        <div class="section-heading">
-          <p class="eyebrow">Action tracker</p>
-          <h2>Audit to-do list</h2>
-        </div>
-
-        <% if (todos && todos.length) { %>
-          <section class="todo-list">
-            <% todos.forEach(function(todo) { %>
-              <article class="todo-card todo-status-<%= todo.status %>">
-                <div class="todo-card-head">
-                  <div>
-                    <span><%= formatCategory(todo.category) %></span>
-                    <h3><%= todo.checkName %></h3>
-                    <p><%= todo.pageTitle %></p>
-                    <small><%= todo.pageUrl %></small>
-                  </div>
-
-                  <strong><%= formatStatus(todo.status) %></strong>
-                </div>
-
-                <div class="todo-context">
-                  <div>
-                    <span>Issue</span>
-                    <p><%= todo.message %></p>
-                  </div>
-
-                  <div>
-                    <span>Recommendation</span>
-                    <p><%= todo.recommendation || "No recommendation saved." %></p>
-                  </div>
-
-                  <div>
-                    <span>Why it matters</span>
-                    <p><%= todo.why || "This improvement helps make the page clearer and stronger." %></p>
-                  </div>
-
-                  <% if (todo.businessImpact) { %>
-                    <div>
-                      <span>Business impact</span>
-                      <p><%= todo.businessImpact %></p>
-                    </div>
-                  <% } %>
-
-                  <% if (todo.implementationHint) { %>
-                    <div>
-                      <span>Implementation hint</span>
-                      <p><%= todo.implementationHint %></p>
-                    </div>
-                  <% } %>
-
-                  <% if (todo.expectedImpact || todo.effort) { %>
-                    <div>
-                      <span>Impact / Effort</span>
-                      <p>
-                        <%= todo.expectedImpact ? "Impact: " + todo.expectedImpact : "" %>
-                        <%= todo.expectedImpact && todo.effort ? " · " : "" %>
-                        <%= todo.effort ? "Effort: " + todo.effort : "" %>
-                      </p>
-                    </div>
-                  <% } %>
-                </div>
-
-                <form method="POST" action="/todos/<%= todo._id %>/status" class="todo-status-form">
-                  <input type="hidden" name="returnTo" value="<%= auditRun ? '/audit/' + auditRun._id : '/' %>" />
-
-                  <button name="status" value="open" type="submit">Open</button>
-                  <button name="status" value="in_progress" type="submit">In progress</button>
-                  <button name="status" value="done" type="submit">Done</button>
-                  <button name="status" value="ignored" type="submit">Ignore</button>
-                </form>
-              </article>
-            <% }) %>
-          </section>
-        <% } else { %>
-          <section class="panel">
-            <h3>No to-dos yet</h3>
+            <p class="eyebrow">Gaming Nectar Intelligence</p>
+            <h1><%= auditRun?.type === "site" ? "Full Site Dashboard" : "Audit Results" %></h1>
             <p>
-              Open any SEO, GEO, Technical, Linking, Content or Commercial check,
-              then click “Add to to-do list”.
+              <% if (auditRun?._id) { %>
+                Saved audit · Run ID: <strong><%= auditRun._id %></strong>
+              <% } else { %>
+                Live audit report
+              <% } %>
             </p>
-          </section>
-        <% } %>
-      </section>
-
-      <% if (competitorAnalysis) { %>
-        <section class="tab-panel" data-tab-panel="competitors">
-          <div class="section-heading">
-            <p class="eyebrow">Competitor gaps</p>
-            <h2>Where competitors are stronger</h2>
           </div>
 
-          <% if (competitorAnalysis.comparison.opportunities.length) { %>
-            <div class="opportunity-list">
-              <% competitorAnalysis.comparison.opportunities.forEach(function(item) { %>
-                <article>
-                  <span><%= formatCategory(item.category) %></span>
-                  <p><%= item.message %></p>
-                  <small><%= item.competitorUrl %></small>
+          <div class="header-actions">
+            <a class="button-link secondary-link" href="/audit">Run another audit</a>
+            <a class="button-link" href="/dashboard">Dashboard</a>
+          </div>
+        </header>
+
+        <section class="summary-strip">
+          <article class="metric-card">
+            <span>Average score</span>
+            <strong><%= averageScore %>/10</strong>
+          </article>
+
+          <article class="metric-card">
+            <span>Pages audited</span>
+            <strong><%= pageCount %></strong>
+          </article>
+
+          <article class="metric-card">
+            <span>Total issues</span>
+            <strong><%= issueCount %></strong>
+          </article>
+
+          <article class="metric-card">
+            <span>To-dos</span>
+            <strong><%= todoSummary?.total || 0 %></strong>
+          </article>
+        </section>
+
+        <nav class="audit-tabs">
+          <a href="#overview">Overview</a>
+          <a href="#geo-aeo">GEO / AEO</a>
+          <a href="#seo">SEO</a>
+          <a href="#technical">Technical</a>
+          <a href="#linking">Linking</a>
+          <a href="#content">Content</a>
+          <a href="#commercial">Commercial</a>
+          <a href="#pages">Pages</a>
+          <a href="#todos">To-dos</a>
+        </nav>
+
+        <section id="overview" class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Dashboard</p>
+            <h2>Overall performance</h2>
+            <p>Category averages are calculated from every audited URL in this run.</p>
+          </div>
+
+          <div class="category-score-grid">
+            <% categories.forEach(function(category) { %>
+              <article class="category-score-card">
+                <span><%= category %></span>
+                <strong class="<%= scoreClass(categoryAverages[category]) %>">
+                  <%= categoryAverages[category] ?? "—" %><%= categoryAverages[category] !== undefined ? "/10" : "" %>
+                </strong>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Focus areas</p>
+            <h2>Weakest pages</h2>
+          </div>
+
+          <% if (weakestPages.length) { %>
+            <div class="page-card-list">
+              <% weakestPages.forEach(function(page) { %>
+                <article class="page-result-card">
+                  <div>
+                    <strong><%= getPageTitle(page) %></strong>
+                    <a href="<%= getPageUrl(page) %>" target="_blank" rel="noopener noreferrer"><%= getPageUrl(page) %></a>
+                    <small><%= Array.isArray(page.issues) ? page.issues.length : 0 %> issues found</small>
+                  </div>
+                  <span class="page-score <%= scoreClass(page.overallScore) %>"><%= page.overallScore || 0 %>/10</span>
                 </article>
               <% }) %>
             </div>
           <% } else { %>
-            <section class="panel">
-              <h3>No major competitor gaps found</h3>
-              <p>Your page is not showing major weaknesses against the competitors entered.</p>
-            </section>
+            <p>No audited pages found.</p>
           <% } %>
         </section>
-      <% } %>
-    </main>
 
-    <div class="modal-backdrop" data-check-modal hidden>
-      <section class="check-modal" role="dialog" aria-modal="true">
-        <button class="modal-close" type="button" data-close-check-modal>×</button>
-
-        <div class="modal-top">
-          <div>
-            <p class="eyebrow" data-modal-category>Category</p>
-            <h2 data-modal-check-name>Check name</h2>
-            <p data-modal-page-title></p>
-            <small data-modal-page-url></small>
+        <section class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Priority</p>
+            <h2>Priority issues</h2>
           </div>
 
-          <span class="modal-status" data-modal-status>Status</span>
-        </div>
+          <% if (priorityIssues.length) { %>
+            <div class="issue-list">
+              <% priorityIssues.forEach(function(issue, index) { %>
+                <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
+                  <div>
+                    <span><%= getIssueSeverity(issue) %> · <%= getIssueCategory(issue) %></span>
+                    <h3><%= issue.title || issue.checkName || issue.name || "Issue" %></h3>
+                    <p><%= issue.message || issue.description || issue.recommendation || "No issue detail was provided." %></p>
 
-        <div class="modal-grid">
-          <div>
-            <span>What we found</span>
-            <p data-modal-message></p>
-            <small data-modal-evidence></small>
+                    <% if (issue.recommendation) { %>
+                      <strong>Recommendation</strong>
+                      <p><%= issue.recommendation %></p>
+                    <% } %>
+
+                    <a href="<%= issue.pageUrl %>" target="_blank" rel="noopener noreferrer"><%= issue.pageTitle || issue.pageUrl %></a>
+                  </div>
+
+                  <form method="POST" action="/todos">
+                    <input type="hidden" name="auditRunId" value="<%= auditRun?._id || "" %>" />
+                    <input type="hidden" name="pageUrl" value="<%= issue.pageUrl || "" %>" />
+                    <input type="hidden" name="pageTitle" value="<%= issue.pageTitle || "" %>" />
+                    <input type="hidden" name="category" value="<%= getIssueCategory(issue) %>" />
+                    <input type="hidden" name="checkName" value="<%= issue.title || issue.checkName || issue.name || "Audit issue" %>" />
+                    <input type="hidden" name="severity" value="<%= getIssueSeverity(issue) %>" />
+                    <input type="hidden" name="message" value="<%= issue.message || issue.description || "" %>" />
+                    <input type="hidden" name="recommendation" value="<%= issue.recommendation || issue.message || "" %>" />
+                    <input type="hidden" name="source" value="audit" />
+                    <input type="hidden" name="returnTo" value="/audit/<%= auditRun?._id || "" %>" />
+                    <button type="submit">Add to-do</button>
+                  </form>
+                </article>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <p>No priority issues found.</p>
+          <% } %>
+        </section>
+
+        <section id="geo-aeo" class="card">
+          <div class="section-heading">
+            <p class="eyebrow">GEO / AEO</p>
+            <h2>Generative and answer-engine analysis</h2>
           </div>
 
-          <div>
-            <span>Why it matters</span>
-            <p data-modal-why></p>
+          <div class="issue-list compact">
+            <% allIssues.filter(issue => ["geo", "aeo", "schema", "answer"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
+              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
+                <span><%= issue.pageTitle %></span>
+                <h3><%= issue.title || issue.checkName || "GEO / AEO issue" %></h3>
+                <p><%= issue.recommendation || issue.message || "Improve entity clarity, structured data, answer blocks and topical coverage." %></p>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+
+        <section id="seo" class="card">
+          <div class="section-heading">
+            <p class="eyebrow">SEO</p>
+            <h2>Search optimisation issues</h2>
           </div>
 
-          <div>
-            <span>How to improve</span>
-            <p data-modal-how></p>
+          <div class="issue-list compact">
+            <% allIssues.filter(issue => ["seo", "metadata", "indexing", "canonical"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
+              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
+                <span><%= issue.pageTitle %></span>
+                <h3><%= issue.title || issue.checkName || "SEO issue" %></h3>
+                <p><%= issue.recommendation || issue.message || "Improve metadata, crawlability, canonical signals and content targeting." %></p>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+
+        <section id="technical" class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Technical</p>
+            <h2>Technical health</h2>
           </div>
 
-          <div>
-            <span>Example</span>
-            <p data-modal-example></p>
+          <div class="issue-list compact">
+            <% allIssues.filter(issue => ["technical", "performance", "accessibility"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
+              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
+                <span><%= issue.pageTitle %></span>
+                <h3><%= issue.title || issue.checkName || "Technical issue" %></h3>
+                <p><%= issue.recommendation || issue.message || "Improve page speed, crawlability, accessibility and technical consistency." %></p>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+
+        <section id="linking" class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Linking</p>
+            <h2>Internal-link and link-count analysis</h2>
           </div>
 
-          <div data-modal-business-impact-block hidden>
-            <span>Business impact</span>
-            <p data-modal-business-impact></p>
+          <div class="issue-list compact">
+            <% allIssues.filter(issue => ["linking", "links", "internal links"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
+              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
+                <span><%= issue.pageTitle %></span>
+                <h3><%= issue.title || issue.checkName || "Linking issue" %></h3>
+                <p><%= issue.recommendation || issue.message || "Reduce link noise and prioritise commercially useful internal links." %></p>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+
+        <section id="content" class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Content</p>
+            <h2>Content quality</h2>
           </div>
 
-          <div data-modal-implementation-hint-block hidden>
-            <span>Implementation hint</span>
-            <p data-modal-implementation-hint></p>
+          <div class="issue-list compact">
+            <% allIssues.filter(issue => ["content", "copy", "headings"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
+              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
+                <span><%= issue.pageTitle %></span>
+                <h3><%= issue.title || issue.checkName || "Content issue" %></h3>
+                <p><%= issue.recommendation || issue.message || "Add useful, specific and commercially relevant content." %></p>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+
+        <section id="commercial" class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Commercial</p>
+            <h2>Commercial and merchandising signals</h2>
           </div>
 
-          <div data-modal-expected-impact-block hidden>
-            <span>Expected impact</span>
-            <p data-modal-expected-impact></p>
+          <div class="issue-list compact">
+            <% allIssues.filter(issue => ["commercial", "conversion", "trust", "merchandising"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
+              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
+                <span><%= issue.pageTitle %></span>
+                <h3><%= issue.title || issue.checkName || "Commercial issue" %></h3>
+                <p><%= issue.recommendation || issue.message || "Improve buyability, stock signals, trust, product clarity and user intent satisfaction." %></p>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+
+        <section id="pages" class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Pages</p>
+            <h2>All audited pages</h2>
           </div>
 
-          <div data-modal-effort-block hidden>
-            <span>Effort</span>
-            <p data-modal-effort></p>
+          <% if (safeResults.length) { %>
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Page</th>
+                    <th>Score</th>
+                    <th>Issues</th>
+                    <th>Technical</th>
+                    <th>SEO</th>
+                    <th>GEO</th>
+                    <th>Linking</th>
+                    <th>Content</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% safeResults.forEach(function(page) { %>
+                    <tr>
+                      <td>
+                        <strong><%= getPageTitle(page) %></strong>
+                        <br />
+                        <a href="<%= getPageUrl(page) %>" target="_blank" rel="noopener noreferrer"><%= getPageUrl(page) %></a>
+                      </td>
+                      <td><strong><%= page.overallScore || 0 %>/10</strong></td>
+                      <td><%= Array.isArray(page.issues) ? page.issues.length : 0 %></td>
+                      <td><%= page.categoryScores?.technical ?? "—" %></td>
+                      <td><%= page.categoryScores?.seo ?? "—" %></td>
+                      <td><%= page.categoryScores?.geo ?? "—" %></td>
+                      <td><%= page.categoryScores?.linking ?? "—" %></td>
+                      <td><%= page.categoryScores?.content ?? "—" %></td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } else { %>
+            <p>No page results available.</p>
+          <% } %>
+        </section>
+
+        <section id="todos" class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Action plan</p>
+            <h2>To-dos from this audit</h2>
           </div>
-        </div>
 
-        <form method="POST" action="/todos" class="modal-todo-form">
-          <input type="hidden" name="auditRunId" data-field-audit-run-id />
-          <input type="hidden" name="returnTo" data-field-return-to />
-          <input type="hidden" name="pageUrl" data-field-page-url />
-          <input type="hidden" name="pageTitle" data-field-page-title />
-          <input type="hidden" name="category" data-field-category />
-          <input type="hidden" name="checkName" data-field-check-name />
-          <input type="hidden" name="severity" data-field-severity />
-          <input type="hidden" name="message" data-field-message />
-          <input type="hidden" name="recommendation" data-field-recommendation />
-          <input type="hidden" name="evidence" data-field-evidence />
-          <input type="hidden" name="why" data-field-why />
-          <input type="hidden" name="how" data-field-how />
-          <input type="hidden" name="example" data-field-example />
-          <input type="hidden" name="businessImpact" data-field-business-impact />
-          <input type="hidden" name="implementationHint" data-field-implementation-hint />
-          <input type="hidden" name="expectedImpact" data-field-expected-impact />
-          <input type="hidden" name="effort" data-field-effort />
+          <% if (todos && todos.length) { %>
+            <div class="todo-board">
+              <% todos.forEach(function(todo) { %>
+                <article class="todo-card priority-<%= todo.priority || "medium" %>">
+                  <div>
+                    <span class="status-pill"><%= todo.status %></span>
+                    <h3><%= todo.checkName || todo.category || "SEO task" %></h3>
+                    <p><%= todo.recommendation || todo.message %></p>
+                    <small><%= todo.pageUrl %></small>
+                  </div>
 
-          <button type="submit">Add to to-do list</button>
-        </form>
+                  <form method="POST" action="/todos/<%= todo._id %>/status">
+                    <input type="hidden" name="returnTo" value="/audit/<%= auditRun?._id || "" %>" />
+
+                    <label>Status</label>
+                    <select name="status">
+                      <% ["new", "planned", "in_progress", "blocked", "done", "ignored"].forEach(function(status) { %>
+                        <option value="<%= status %>" <%= todo.status === status ? "selected" : "" %>><%= status %></option>
+                      <% }) %>
+                    </select>
+
+                    <label>Due date</label>
+                    <input type="date" name="dueDate" value="<%= todo.dueDate ? new Date(todo.dueDate).toISOString().slice(0, 10) : "" %>" />
+
+                    <button type="submit">Update</button>
+                  </form>
+                </article>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <p>No to-dos have been added from this audit yet. Use the “Add to-do” buttons in Priority issues.</p>
+          <% } %>
+        </section>
       </section>
-    </div>
-
-    <script src="/app.js"></script>
+    </main>
   </body>
 </html>
-
-<%
-function formatCategory(category) {
-  return String(category || "")
-    .split("_")
-    .join(" ")
-    .replace(/\b\w/g, function(letter) {
-      return letter.toUpperCase();
-    });
-}
-
-function formatStatus(status) {
-  const labels = {
-    open: "Open",
-    in_progress: "In progress",
-    done: "Done",
-    ignored: "Ignored"
-  };
-
-  return labels[status] || status;
-}
-
-function scoreLabel(score) {
-  if (score >= 8) return "Strong";
-  if (score >= 6) return "Needs work";
-  return "Priority fix";
-}
-
-function scoreClass(score) {
-  if (score >= 8) return "score-strong";
-  if (score >= 6) return "score-mid";
-  return "score-low";
-}
-
-function averageCategories(results) {
-  const totals = {};
-  const counts = {};
-
-  results.forEach(function(result) {
-    Object.entries(result.categoryScores).forEach(function(entry) {
-      totals[entry[0]] = (totals[entry[0]] || 0) + entry[1];
-      counts[entry[0]] = (counts[entry[0]] || 0) + 1;
-    });
-  });
-
-  const averages = {};
-
-  Object.keys(totals).forEach(function(key) {
-    averages[key] = Math.round((totals[key] / counts[key]) * 10) / 10;
-  });
-
-  return averages;
-}
-
-function getContext(category, checkName) {
-  const contexts = {
-    geo: {
-      "JSON-LD structured data": {
-        why: "Structured data helps search engines and AI systems understand the page as a machine-readable entity.",
-        how: "Add valid JSON-LD schema such as Product, Organization, FAQPage, BreadcrumbList, Article or CollectionPage where relevant.",
-        example: "A product page should expose product name, description, image, price, availability, brand and reviews where available."
-      },
-      "Schema type clarity": {
-        why: "If schema exists but the type is unclear, search and AI systems may not confidently classify the page.",
-        how: "Ensure every JSON-LD block includes a clear @type and validates cleanly.",
-        example: "Use @type Product for product pages and @type FAQPage for FAQ sections."
-      },
-      "JSON-LD validity": {
-        why: "Invalid JSON-LD may be ignored entirely by search engines and AI systems.",
-        how: "Fix JSON syntax errors and validate structured data before relying on it.",
-        example: "Use valid JSON-LD with correct commas, quotes, @context and @type fields."
-      },
-      "FAQ schema matches visible FAQ": {
-        why: "FAQ schema can be risky if the questions and answers are not visibly present on the page.",
-        how: "Make sure the same FAQ questions and answers used in JSON-LD are shown on the page. Remove FAQPage schema if the FAQs are hidden.",
-        example: "If schema includes 'Is Gaming Nectar sugar free?', that question should also be visible in an FAQ section."
-      },
-      "Product schema name matches visible product": {
-        why: "Product schema should describe the actual visible product. If it does not match, search and AI systems may distrust the data.",
-        how: "Use the same product name in Product schema as the visible product title, H1 and product copy.",
-        example: "If the page title is 'Gaming Nectar Variety Pack', the Product schema name should also refer to 'Gaming Nectar Variety Pack'."
-      },
-      "Offer schema matches visible pricing": {
-        why: "Price data in schema should reflect what users can actually see. Hidden or mismatched offer data can reduce trust.",
-        how: "Make sure product price, sale price and currency are visible near the product CTA.",
-        example: "If schema exposes £24.99, the page should visibly show £24.99 near the Add to Cart button."
-      },
-      "Availability schema matches visible stock status": {
-        why: "Availability data should match what users see. Inconsistent stock status can confuse search engines and customers.",
-        how: "Show clear in-stock, sold-out, preorder or unavailable messaging on product pages.",
-        example: "If schema says InStock, the page should not appear sold out."
-      },
-      "Review schema matches visible reviews": {
-        why: "Review/rating schema should only be used when reviews or ratings are visible to users on the page.",
-        how: "Display the rating, review count or customer reviews if Review or AggregateRating schema is present.",
-        example: "If schema says 4.8 stars from 120 reviews, users should be able to see that review information."
-      },
-      "Breadcrumb schema matches visible navigation": {
-        why: "Breadcrumb schema should reflect a real navigational hierarchy.",
-        how: "Show breadcrumbs or ensure the schema matches clear visible navigation and page hierarchy.",
-        example: "Home > Energy Drinks > Variety Pack"
-      },
-      "Organization schema matches visible brand": {
-        why: "Organization schema should reinforce a clear brand/entity identity.",
-        how: "Make the brand name and brand/entity information visible on important pages.",
-        example: "Gaming Nectar should be clearly visible as the brand, with supporting About, Contact, logo or social proof signals."
-      },
-      "Answer extraction readiness": {
-        why: "AEO and GEO rely on clear, extractable answers. Marketing copy alone can be harder for AI systems to use.",
-        how: "Add concise answer blocks using natural questions and direct answers.",
-        example: "What is Gaming Nectar? Gaming Nectar is a cleaner energy drink designed for focus, gaming, work and busy days."
-      },
-      "Entity definition clarity": {
-        why: "AI systems need to understand the brand, product, category, audience and differentiators.",
-        how: "Clearly state what the product is, who it is for, what category it belongs to and why it is different.",
-        example: "Gaming Nectar is a healthier energy drink for gamers, creators and busy people who want cleaner energy and focus."
-      },
-      "Comparison and alternative coverage": {
-        why: "AI answers often compare options. Pages with comparison context are easier to recommend.",
-        how: "Add comparison sections against coffee, standard energy drinks, sugary drinks, powdered energy products or competitors.",
-        example: "Gaming Nectar vs traditional energy drinks: lower sugar, added vitamins/minerals, cleaner energy positioning."
-      },
-      "Buyer objection coverage": {
-        why: "Objection handling helps both users and AI systems understand whether the product is a good fit.",
-        how: "Answer concerns around caffeine, sugar, calories, delivery, returns, subscriptions, taste and daily use.",
-        example: "How much caffeine is in Gaming Nectar? Is it suitable for daily use? How long does delivery take?"
-      },
-      "Source-of-truth completeness": {
-        why: "AI systems prefer clear, consistent factual information. Users also need these signals to trust and buy.",
-        how: "Make ingredients, nutrition, shipping, returns, contact, guarantee, reviews and about information easy to find.",
-        example: "A product page should link to or show ingredients, nutrition, reviews, shipping and returns."
-      },
-      "Summary block readiness": {
-        why: "Summary blocks make pages easier for users and AI systems to understand quickly.",
-        how: "Add a short summary near the top of key pages explaining what the page/product is, who it helps and why it matters.",
-        example: "Gaming Nectar gives cleaner energy for focus, gaming and busy days, with vitamins, minerals and lower sugar than typical energy drinks."
-      },
-      "Experience and proof signals": {
-        why: "AI and users both need evidence to trust claims. Proof helps you compete against stronger brands.",
-        how: "Add customer reviews, ratings, testimonials, usage examples, guarantees or other proof points.",
-        example: "Rated 4.8/5 by customers, with review snippets explaining taste, focus and energy benefits."
-      },
-      "Product expansion readiness": {
-        why: "As the business grows, search and AI systems need to understand the product ecosystem, not just one page.",
-        how: "Add collection descriptions, related products, bundles, flavour explanations and internal links between products.",
-        example: "Create clear collection copy for energy drinks, variety packs, bestsellers and new product launches."
-      }
-    },
-    seo: {
-      "Title exists": {
-        why: "The title tag is one of the strongest page-level SEO signals.",
-        how: "Write a unique, descriptive title with the main topic near the start.",
-        example: "Healthy Energy Drink for Gaming & Focus | Gaming Nectar"
-      },
-      "Title length": {
-        why: "Titles that are too short lack context, while long titles can be truncated.",
-        how: "Aim for useful, readable titles around 25–65 characters.",
-        example: "Clean Energy Drinks for Gaming and Focus | Gaming Nectar"
-      },
-      "Meta description exists": {
-        why: "Meta descriptions influence click-through and help frame the page in search.",
-        how: "Add a persuasive description explaining the page benefit.",
-        example: "Discover cleaner energy drinks for focus, gaming and busy days."
-      },
-      "Meta description length": {
-        why: "Short descriptions lack detail; very long ones may be truncated.",
-        how: "Aim for roughly 90–170 characters with a clear benefit.",
-        example: "A clean energy drink made for gamers, creators and busy days. Explore flavours, benefits and bundles."
-      },
-      "Single H1": {
-        why: "The H1 helps users and search engines understand the page topic.",
-        how: "Use one clear H1 that describes the product, collection or page purpose.",
-        example: "Clean Energy Drinks for Gaming and Focus"
-      }
-    },
-    technical: {
-      "HTTP status": {
-        why: "Erroring or redirected pages can waste crawl budget and damage user experience.",
-        how: "Fix broken URLs, server errors, redirect chains or inaccessible pages.",
-        example: "Important pages should return 200 OK."
-      },
-      "Complete HTML": {
-        why: "Incomplete HTML can indicate rendering or server issues.",
-        how: "Check that the page loads fully and main content is present in the HTML.",
-        example: "View source and confirm the main content and closing html tag are present."
-      },
-      "Mobile viewport": {
-        why: "The viewport tag helps pages display correctly on mobile devices.",
-        how: "Add a viewport meta tag in the document head.",
-        example: "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-      },
-      Canonical: {
-        why: "Canonical tags help search engines understand the preferred URL.",
-        how: "Add canonical tags pointing to the clean preferred page URL.",
-        example: "A product page should canonicalise to its main product URL."
-      },
-      "Indexability hints": {
-        why: "A noindex directive can stop pages appearing in Google.",
-        how: "Remove noindex from pages that should rank.",
-        example: "Product, collection and content pages should usually be indexable."
-      }
-    },
-    linking: {
-      "Internal links": {
-        why: "Internal links distribute authority and show relationships between pages.",
-        how: "Add contextual links to related products, collections, guides, FAQs and buying pages.",
-        example: "From a product page, link to ingredients, bundles, FAQs and related flavours."
-      },
-      "External links": {
-        why: "Trusted references can support claims and improve credibility.",
-        how: "Where useful, link to review platforms, certifications, studies or social proof.",
-        example: "If mentioning an ingredient benefit, cite or explain the source of the claim."
-      },
-      "Link volume balance": {
-        why: "Too many links can create clutter, dilute attention and make the page harder to interpret.",
-        how: "Reduce repeated menu, footer, filter or duplicate links and prioritise useful contextual links.",
-        example: "Keep important navigation but reduce repeated links that do not help users make decisions."
-      }
-    },
-    content: {
-      "Content depth": {
-        why: "Thin pages often fail to answer enough questions to rank, convert or be used by AI systems.",
-        how: "Add deeper copy covering benefits, use cases, ingredients, objections, FAQs, comparisons and trust signals.",
-        example: "Explain what the product is, who it is for, why it is different, ingredients, usage and FAQs."
-      },
-      "Section structure": {
-        why: "Clear sections improve scanning, SEO and AI extraction.",
-        how: "Use H2 sections for benefits, ingredients, FAQs, reviews, delivery, comparisons and usage.",
-        example: "Benefits, Ingredients, How to Use, FAQs, Reviews, Delivery & Returns."
-      },
-      "Content signal: benefits": {
-        why: "Users need to understand the outcome, not just the product.",
-        how: "Explain benefits in clear, specific language.",
-        example: "Supports focus, cleaner energy, lower sugar, vitamins and minerals."
-      },
-      "Content signal: ingredients": {
-        why: "Ingredients and nutrition are important trust signals for food and drink products.",
-        how: "Show ingredient and nutrition information clearly.",
-        example: "Include caffeine, sugar, calories, vitamins, minerals and flavour information."
-      },
-      "Content signal: usage": {
-        why: "Usage context helps customers understand when and why to buy.",
-        how: "Add guidance on when to drink it and who it suits.",
-        example: "For gaming sessions, work focus, studying, workouts or busy days."
-      },
-      "Content signal: objections": {
-        why: "Objections stop purchases. Addressing them improves conversion.",
-        how: "Answer concerns around delivery, returns, subscriptions, taste, ingredients and caffeine.",
-        example: "Add sections for shipping, returns, caffeine level and daily use."
-      },
-      "Content signal: socialProof": {
-        why: "Reviews and proof reduce purchase hesitation.",
-        how: "Add reviews, ratings, testimonials and customer feedback.",
-        example: "Show review stars near the product title and detailed reviews lower on the page."
-      }
-    },
-    conversion: {
-      "Primary CTA": {
-        why: "A weak or missing CTA makes it harder for users to take the next step.",
-        how: "Make Add to Cart, Buy Now, Shop Now or Subscribe highly visible.",
-        example: "Use a clear sticky Add to Cart button on product pages."
-      },
-      "Pricing clarity": {
-        why: "Users need price clarity before they can make a purchase decision.",
-        how: "Make price, sale price, bundles and subscription savings obvious.",
-        example: "Show price near the product title and again near the CTA."
-      },
-      "Value/offer signal": {
-        why: "Value signals help users understand why they should buy now or buy more.",
-        how: "Show bundles, savings, bestsellers, discounts or limited offers where relevant.",
-        example: "Save 15% with a monthly bundle."
-      }
-    },
-    trust: {
-      "Reviews/social proof": {
-        why: "Reviews reduce hesitation and increase confidence.",
-        how: "Add reviews, ratings, testimonials and customer quotes.",
-        example: "Show average rating, review count and written reviews."
-      },
-      "Delivery/returns clarity": {
-        why: "Delivery and returns uncertainty can stop purchases.",
-        how: "Make shipping, delivery times, returns and refunds visible.",
-        example: "Free UK delivery over £X. 30-day returns."
-      },
-      "Contact/help clarity": {
-        why: "Users trust brands more when help and contact options are clear.",
-        how: "Add clear contact, support and help links.",
-        example: "Need help? Contact us at support@example.com."
-      },
-      "Guarantee/security": {
-        why: "Guarantees and secure checkout messaging reduce perceived risk.",
-        how: "Add secure checkout, guarantee or satisfaction messaging where true.",
-        example: "Secure checkout. Money-back guarantee."
-      }
-    },
-    merchandising: {
-      "Variant clarity": {
-        why: "Users need to understand available flavours, sizes, bundles and quantities.",
-        how: "Make variants easy to compare and select.",
-        example: "Show flavour cards, pack size and bundle options clearly."
-      },
-      "Ingredient/nutrition clarity": {
-        why: "Nutrition information is central for food and drink purchase confidence.",
-        how: "Show caffeine, sugar, calories, vitamins, minerals and ingredients clearly.",
-        example: "Add a nutrition table and ingredient breakdown."
-      },
-      "Use-case clarity": {
-        why: "Use cases help customers picture when the product fits into their life.",
-        how: "Explain whether it is for gaming, work, study, workouts or daily energy.",
-        example: "Perfect for gaming sessions, work focus and busy days."
-      },
-      "Benefit clarity": {
-        why: "Clear benefits make the product easier to understand and buy.",
-        how: "Explain the specific outcomes users get.",
-        example: "Clean energy, focus support, lower sugar and added vitamins."
-      }
-    }
-  };
-
-  return (
-    contexts[category]?.[checkName] || {
-      why: "This signal helps users, search engines and AI systems understand the page more clearly.",
-      how: "Improve the page by making the information clearer, more specific and easier to find.",
-      example: "Add concise, specific copy and structure it with clear headings and supporting details."
-    }
-  );
-}
-%>

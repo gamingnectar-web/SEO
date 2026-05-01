@@ -3,168 +3,214 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title %></title>
+    <title><%= title || "Site Quality Auditor" %></title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
 
   <body>
-    <main class="page">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Gaming Nectar Intelligence</p>
-          <h1>SEO, GEO & Site Quality Dashboard</h1>
-          <p>
-            Crawl your site, score individual pages, compare competitors, and
-            break issues into SEO, GEO, technical, linking, content, trust,
-            conversion and merchandising tabs.
-          </p>
+    <main class="app-shell">
+      <aside class="side-nav">
+        <div class="brand">Site Quality Auditor</div>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todos">To-dos</a>
+        <a href="/keywords">Keywords</a>
+        <a class="active" href="/audit">Audits</a>
 
-          <div class="hero-pills">
-            <span>Full-site crawl</span>
-            <span>GEO</span>
-            <span>SEO</span>
-            <span>Technical</span>
-            <span>Linking</span>
-            <span>Content</span>
-            <span>Competitors</span>
-          </div>
-        </div>
+        <form method="POST" action="/logout" class="side-logout">
+          <button type="submit">Log out</button>
+        </form>
+      </aside>
 
-        <div class="hero-panel">
-          <span class="panel-number">10</span>
-          <span class="panel-label">Audit areas</span>
-          <p>
-            MongoDB-backed audit history, saved reports, full-site crawling and
-            competitor analysis.
-          </p>
-        </div>
-      </section>
-
-      <% if (typeof error !== "undefined" && error) { %>
-        <div class="error"><%= error %></div>
-      <% } %>
-
-      <section class="tool-grid three-tools">
-        <article class="card card-accent">
-          <div class="card-heading">
-            <p class="eyebrow">Recommended</p>
-            <h2>Full-site crawl</h2>
-            <p>
-              Enter your homepage. The app will read your sitemap and audit up
-              to 100 URLs.
-            </p>
+      <section class="app-main">
+        <header class="app-header">
+          <div>
+            <p class="eyebrow">Audit tools</p>
+            <h1>Site Quality Auditor</h1>
+            <p>Run full-site, page-level, or competitor audits. Results are saved and fed into the dashboard history.</p>
           </div>
 
-          <form method="POST" action="/audit">
-            <input type="hidden" name="mode" value="site" />
-
-            <label for="siteUrl">Site URL</label>
-            <input
-              id="siteUrl"
-              name="siteUrl"
-              type="text"
-              placeholder="https://www.gamingnectar.com"
-            />
-
-            <label for="maxUrls">Maximum URLs</label>
-            <input
-              id="maxUrls"
-              name="maxUrls"
-              type="number"
-              min="5"
-              max="100"
-              value="50"
-            />
-
-            <button type="submit">Run full-site crawl</button>
-          </form>
-        </article>
-
-        <article class="card">
-          <div class="card-heading">
-            <p class="eyebrow">Page audit</p>
-            <h2>Audit selected URLs</h2>
-            <p>
-              Paste specific URLs when you want to inspect key pages manually.
-            </p>
+          <div class="header-actions">
+            <a class="button-link secondary-link" href="/dashboard">Back to dashboard</a>
           </div>
+        </header>
 
-          <form method="POST" action="/audit">
-            <input type="hidden" name="mode" value="standard" />
+        <% if (error) { %>
+          <div class="error"><%= error %></div>
+        <% } %>
 
-            <label for="urls">URLs, one per line</label>
+        <section class="tool-grid three-tools">
+          <article class="card card-accent">
+            <div class="card-heading">
+              <p class="eyebrow">Full crawl</p>
+              <h2>Full-site audit</h2>
+              <p>Use a sitemap crawl to discover and audit multiple URLs.</p>
+            </div>
 
-            <textarea
-              id="urls"
-              name="urls"
-              rows="8"
-              placeholder="https://www.gamingnectar.com/&#10;https://www.gamingnectar.com/products/example"
-            ></textarea>
+            <form method="POST" action="/audit">
+              <input type="hidden" name="mode" value="site" />
 
-            <button type="submit">Run page audit</button>
-          </form>
-        </article>
+              <label for="siteUrl">Site URL</label>
+              <input
+                id="siteUrl"
+                name="siteUrl"
+                type="url"
+                placeholder="https://www.gamingnectar.com/"
+                required
+              />
 
-        <article class="card card-dark">
-          <div class="card-heading">
-            <p class="eyebrow">Competitor analysis</p>
-            <h2>Compare competitors</h2>
-            <p>
-              Add your page and up to five competitor URLs to see where they are
-              stronger.
-            </p>
-          </div>
+              <label for="maxUrls">Maximum URLs</label>
+              <input
+                id="maxUrls"
+                name="maxUrls"
+                type="number"
+                min="5"
+                max="100"
+                value="50"
+              />
 
-          <form method="POST" action="/audit">
-            <input type="hidden" name="mode" value="competitor" />
+              <button type="submit">Run full-site crawl</button>
+            </form>
+          </article>
 
-            <label for="primaryUrl">Your page URL</label>
-            <input
-              id="primaryUrl"
-              name="primaryUrl"
-              type="text"
-              placeholder="https://www.gamingnectar.com/products/example"
-            />
+          <article class="card">
+            <div class="card-heading">
+              <p class="eyebrow">Specific pages</p>
+              <h2>Page audit</h2>
+              <p>Audit up to 10 specific URLs.</p>
+            </div>
 
-            <label for="competitorUrls">Competitor URLs</label>
-            <textarea
-              id="competitorUrls"
-              name="competitorUrls"
-              rows="6"
-              placeholder="https://competitor.com/product-example&#10;https://anothercompetitor.com/product-example"
-            ></textarea>
+            <form method="POST" action="/audit">
+              <input type="hidden" name="mode" value="standard" />
 
-            <button type="submit">Run competitor analysis</button>
-          </form>
-        </article>
-      </section>
+              <label for="urls">URLs, one per line</label>
+              <textarea
+                id="urls"
+                name="urls"
+                rows="8"
+                placeholder="https://www.gamingnectar.com/products/example"
+                required
+              ></textarea>
 
-      <% if (recentRuns && recentRuns.length) { %>
-        <section class="recent-runs">
-          <div class="section-heading">
-            <p class="eyebrow">History</p>
-            <h2>Recent audit runs</h2>
-          </div>
+              <button type="submit">Run page audit</button>
+            </form>
+          </article>
 
-          <div class="recent-run-list">
-            <% recentRuns.forEach(function(run) { %>
-              <a class="recent-run-card" href="/audit/<%= run._id %>">
-                <div>
-                  <span><%= run.type %></span>
-                  <strong><%= run.summary?.averageScore || 0 %>/10</strong>
-                </div>
+          <article class="card card-dark">
+            <div class="card-heading">
+              <p class="eyebrow">Competition</p>
+              <h2>Competitor audit</h2>
+              <p>Compare one of your pages against competitor pages.</p>
+            </div>
 
-                <p>
-                  <%= run.summary?.pageCount || 0 %> pages ·
-                  <%= run.summary?.issueCount || 0 %> issues
-                </p>
+            <form method="POST" action="/audit">
+              <input type="hidden" name="mode" value="competitor" />
 
-                <small><%= new Date(run.createdAt).toLocaleString("en-GB") %></small>
-              </a>
-            <% }) %>
-          </div>
+              <label for="primaryUrl">Your page URL</label>
+              <input
+                id="primaryUrl"
+                name="primaryUrl"
+                type="url"
+                placeholder="https://www.gamingnectar.com/collections/example"
+                required
+              />
+
+              <label for="competitorUrls">Competitor URLs, one per line</label>
+              <textarea
+                id="competitorUrls"
+                name="competitorUrls"
+                rows="6"
+                placeholder="https://competitor.com/example"
+                required
+              ></textarea>
+
+              <button type="submit">Run competitor audit</button>
+            </form>
+          </article>
         </section>
-      <% } %>
+
+        <section class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Static competitors</p>
+            <h2>Tracked competitor list</h2>
+            <p>Add competitors here so future keyword, SEO and GEO comparisons have a fixed comparison set.</p>
+          </div>
+
+          <form method="POST" action="/competitors">
+            <input type="hidden" name="returnTo" value="/audit" />
+
+            <label for="domain">Competitor domain</label>
+            <input
+              id="domain"
+              name="domain"
+              type="text"
+              placeholder="competitor.com"
+              required
+            />
+
+            <label for="trackedUrls">Tracked URLs, one per line</label>
+            <textarea
+              id="trackedUrls"
+              name="urls"
+              rows="5"
+              placeholder="https://competitor.com/page-a"
+            ></textarea>
+
+            <button type="submit">Track competitor</button>
+          </form>
+        </section>
+
+        <% if (trackedCompetitors && trackedCompetitors.length) { %>
+          <section class="card">
+            <div class="section-heading">
+              <p class="eyebrow">Competitors</p>
+              <h2>Current competitor set</h2>
+            </div>
+
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Domain</th>
+                    <th>Tracked URLs</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% trackedCompetitors.forEach(function(competitor) { %>
+                    <tr>
+                      <td><strong><%= competitor.domain %></strong></td>
+                      <td><%= competitor.urls?.length || 0 %></td>
+                      <td><%= competitor.updatedAt ? new Date(competitor.updatedAt).toLocaleString("en-GB") : "—" %></td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        <% } %>
+
+        <% if (recentRuns && recentRuns.length) { %>
+          <section class="recent-runs">
+            <div class="section-heading">
+              <p class="eyebrow">Saved audits</p>
+              <h2>Recent audit runs</h2>
+            </div>
+
+            <div class="recent-run-list">
+              <% recentRuns.forEach(function(run) { %>
+                <a class="recent-run-card" href="/audit/<%= run._id %>">
+                  <div>
+                    <span><%= run.type %></span>
+                    <strong><%= run.summary?.averageScore || 0 %>/10</strong>
+                  </div>
+                  <p><%= run.summary?.pageCount || 0 %> pages · <%= run.summary?.issueCount || 0 %> issues</p>
+                  <small><%= run.createdAt ? new Date(run.createdAt).toLocaleString("en-GB") : "—" %></small>
+                </a>
+              <% }) %>
+            </div>
+          </section>
+        <% } %>
+      </section>
     </main>
   </body>
 </html>
