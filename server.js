@@ -22,6 +22,7 @@ import { ensureIndexes } from "./services/db/mongodb.js";
 
 import {
   createTodo,
+  createTodosFromAuditResults,
   getTodosForAuditRun,
   getTodoSummaryForAuditRun,
   getTodosForOwner,
@@ -76,8 +77,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 /**
- * Required on Render/proxy hosting when using secure cookies.
- * Without this, Shopify OAuth state can be lost during redirect.
+ * Required for Render / reverse proxy hosting.
+ * Without this, secure session cookies can fail and Shopify OAuth state can be lost.
  */
 app.set("trust proxy", 1);
 
@@ -196,7 +197,8 @@ app.post("/signup", async (req, res) => {
 
         return res.status(500).render("signup", {
           title: "Create account",
-          error: "Your account was created, but the session could not be saved. Please log in."
+          error:
+            "Your account was created, but the session could not be saved. Please log in."
         });
       }
 
@@ -285,7 +287,9 @@ app.get("/auth/shopify/callback", async (req, res) => {
 
         return res
           .status(500)
-          .send("Shopify authentication completed, but the session could not be saved.");
+          .send(
+            "Shopify authentication completed, but the session could not be saved."
+          );
       }
 
       return res.redirect("/dashboard");
@@ -302,7 +306,9 @@ app.get("/auth/shopify/callback", async (req, res) => {
 
 app.get("/", (req, res) => {
   if (req.query.shop && !res.locals.auth.isLoggedIn) {
-    return res.redirect(`/auth/shopify?shop=${encodeURIComponent(req.query.shop)}`);
+    return res.redirect(
+      `/auth/shopify?shop=${encodeURIComponent(req.query.shop)}`
+    );
   }
 
   if (res.locals.auth.isLoggedIn) {
@@ -362,7 +368,10 @@ app.get("/dashboard", requireAuth, async (req, res) => {
 app.get("/api/dashboard/timeline", requireAuth, async (req, res) => {
   try {
     const timeline = await getDashboardTimeline(getOwnerKey(req), 30);
-    return res.json({ timeline });
+
+    return res.json({
+      timeline
+    });
   } catch (error) {
     console.error("Timeline API error:", error);
 
@@ -426,9 +435,9 @@ app.post("/keywords", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/keywords/snapshot", requireAuth, async (req, res) => {
+app.post("/keywords/snapshot", requireAuth, async (_req, res) => {
   try {
-    await runKeywordSnapshot(getOwnerKey(req));
+    await runKeywordSnapshot(getOwnerKey(_req));
     return res.redirect("/keywords");
   } catch (error) {
     console.error("Keyword snapshot error:", error);
@@ -558,7 +567,9 @@ app.get("/audit", requireAuth, async (req, res) => {
   const ownerKey = getOwnerKey(req);
 
   const recentRuns = await safelyGetRecentRuns(ownerKey);
-  const trackedCompetitors = await getTrackedCompetitors(ownerKey).catch(() => []);
+  const trackedCompetitors = await getTrackedCompetitors(ownerKey).catch(
+    () => []
+  );
 
   return res.render("index", {
     title: "Gaming Nectar Site Quality Auditor",
@@ -586,7 +597,9 @@ app.get("/audit/:id", requireAuth, async (req, res) => {
 
     const todos = await getTodosForAuditRun(req.params.id, ownerKey);
     const todoSummary = await getTodoSummaryForAuditRun(req.params.id, ownerKey);
-    const trackedCompetitors = await getTrackedCompetitors(ownerKey).catch(() => []);
+    const trackedCompetitors = await getTrackedCompetitors(ownerKey).catch(
+      () => []
+    );
 
     return res.render("results", {
       title: "Saved Audit Results",
@@ -645,6 +658,13 @@ app.post("/audit", requireAuth, async (req, res) => {
         competitorAnalysis: null
       });
 
+      await createTodosFromAuditResults({
+        ownerKey,
+        auditRunId: auditRun._id.toString(),
+        results: siteAudit.results,
+        source: "site-audit"
+      });
+
       const snapshot = buildAuditSnapshot({
         ownerKey,
         siteUrl,
@@ -681,7 +701,10 @@ app.post("/audit", requireAuth, async (req, res) => {
         );
       }
 
-      const competitorAnalysis = await auditWithCompetitors(primaryUrl, competitorUrls);
+      const competitorAnalysis = await auditWithCompetitors(
+        primaryUrl,
+        competitorUrls
+      );
 
       const results = [
         competitorAnalysis.primary,
@@ -698,6 +721,13 @@ app.post("/audit", requireAuth, async (req, res) => {
         results,
         siteAudit: null,
         competitorAnalysis
+      });
+
+      await createTodosFromAuditResults({
+        ownerKey,
+        auditRunId: auditRun._id.toString(),
+        results,
+        source: "competitor-audit"
       });
 
       const snapshot = buildAuditSnapshot({
@@ -732,6 +762,13 @@ app.post("/audit", requireAuth, async (req, res) => {
       results,
       siteAudit: null,
       competitorAnalysis: null
+    });
+
+    await createTodosFromAuditResults({
+      ownerKey,
+      auditRunId: auditRun._id.toString(),
+      results,
+      source: "page-audit"
     });
 
     const snapshot = buildAuditSnapshot({
@@ -801,7 +838,9 @@ app.use(async (req, res) => {
 async function renderIndexWithError(req, res, error) {
   const ownerKey = getOwnerKey(req);
   const recentRuns = await safelyGetRecentRuns(ownerKey);
-  const trackedCompetitors = await getTrackedCompetitors(ownerKey).catch(() => []);
+  const trackedCompetitors = await getTrackedCompetitors(ownerKey).catch(
+    () => []
+  );
 
   return res.render("index", {
     title: "Gaming Nectar Site Quality Auditor",

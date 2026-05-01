@@ -25,6 +25,68 @@ const LEGACY_STATUS_MAP = {
   ignore: "ignored"
 };
 
+
+export async function createTodosFromAuditResults({
+  ownerKey = "public:anonymous",
+  auditRunId,
+  results = [],
+  source = "audit",
+  maxTodos = 50
+}) {
+  const cleanResults = Array.isArray(results) ? results : [];
+  const created = [];
+  let count = 0;
+
+  for (const page of cleanResults) {
+    const issues = Array.isArray(page.issues) ? page.issues : [];
+
+    for (const issue of issues) {
+      if (count >= maxTodos) {
+        return created;
+      }
+
+      const severity = issue.severity || issue.priority || "medium";
+
+      // Skip very low value issues from becoming automatic work items.
+      if (["info", "positive"].includes(String(severity).toLowerCase())) {
+        continue;
+      }
+
+      const todo = await createTodo({
+        ownerKey,
+        auditRunId,
+        pageUrl: page.url || page.finalUrl || "",
+        pageTitle: page.title || page.h1 || page.url || "",
+        category: issue.category || issue.type || "audit",
+        checkName: issue.title || issue.checkName || issue.name || issue.message || "Audit issue",
+        severity,
+        priority: severity,
+        message: issue.message || issue.description || "",
+        recommendation:
+          issue.recommendation ||
+          issue.message ||
+          "Review this issue and apply the recommended improvement.",
+        evidence: issue.evidence || "",
+        why: issue.why || "",
+        how: issue.how || "",
+        example: issue.example || "",
+        businessImpact: issue.businessImpact || "",
+        implementationHint: issue.implementationHint || "",
+        expectedImpact: issue.expectedImpact || "",
+        effort: issue.effort || "",
+        status: "new",
+        source,
+        returnTo: auditRunId ? `/audit/${auditRunId}` : "/todos"
+      });
+
+      created.push(todo);
+      count += 1;
+    }
+  }
+
+  return created;
+}
+
 export async function createTodo({
   ownerKey = "public:anonymous",
   auditRunId,
