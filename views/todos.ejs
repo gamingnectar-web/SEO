@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="side-nav">
+        <div class="brand">Site Quality Auditor</div>
+        <a href="/dashboard">Dashboard</a>
+        <a class="active" href="/todos">To-dos</a>
+        <a href="/keywords">Keywords</a>
+        <a href="/audit">Audits</a>
+      </aside>
+
+      <section class="app-main">
+        <header class="app-header">
+          <div>
+            <p class="eyebrow">Action tracking</p>
+            <h1>To-dos</h1>
+            <p>Plan, track and complete SEO/GEO/AEO improvements.</p>
+          </div>
+        </header>
+
+        <section class="summary-strip">
+          <article class="metric-card">
+            <span>Total</span>
+            <strong><%= todoSummary?.total || 0 %></strong>
+          </article>
+          <article class="metric-card">
+            <span>Active</span>
+            <strong><%= todoSummary?.active || 0 %></strong>
+          </article>
+          <article class="metric-card">
+            <span>Planned</span>
+            <strong><%= todoSummary?.planned || 0 %></strong>
+          </article>
+          <article class="metric-card">
+            <span>Done</span>
+            <strong><%= todoSummary?.done || 0 %></strong>
+          </article>
+        </section>
+
+        <section class="card">
+          <% if (todos && todos.length) { %>
+            <div class="todo-board">
+              <% todos.forEach(function(todo) { %>
+                <article class="todo-card priority-<%= todo.priority || 'medium' %>">
+                  <div>
+                    <span class="status-pill"><%= todo.status %></span>
+                    <h3><%= todo.checkName || todo.category || "SEO task" %></h3>
+                    <p><%= todo.recommendation || todo.message %></p>
+                    <small><%= todo.pageUrl %></small>
+                  </div>
+
+                  <form method="POST" action="/todos/<%= todo._id %>/status">
+                    <input type="hidden" name="returnTo" value="/todos" />
+
+                    <label>Status</label>
+                    <select name="status">
+                      <% ["new", "planned", "in_progress", "blocked", "done", "ignored"].forEach(function(status) { %>
+                        <option value="<%= status %>" <%= todo.status === status ? "selected" : "" %>><%= status %></option>
+                      <% }) %>
+                    </select>
+
+                    <label>Due date</label>
+                    <input type="date" name="dueDate" value="<%= todo.dueDate ? new Date(todo.dueDate).toISOString().slice(0, 10) : '' %>" />
+
+                    <button type="submit">Update</button>
+                  </form>
+                </article>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <p>No to-dos yet. Run an audit and add recommendations into your action list.</p>
+          <% } %>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

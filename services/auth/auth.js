@@ -129,11 +129,7 @@ export async function verifyPasswordLogin(email, password) {
 
   const ok = await bcrypt.compare(String(password), user.passwordHash);
 
-  if (!ok) {
-    return null;
-  }
-
-  return user;
+  return ok ? user : null;
 }
 
 export function buildShopifyInstallUrl(shop) {

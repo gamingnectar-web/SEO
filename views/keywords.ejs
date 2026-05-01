@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="side-nav">
+        <div class="brand">Site Quality Auditor</div>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/todos">To-dos</a>
+        <a class="active" href="/keywords">Keywords</a>
+        <a href="/audit">Audits</a>
+      </aside>
+
+      <section class="app-main">
+        <header class="app-header">
+          <div>
+            <p class="eyebrow">Keyword intelligence</p>
+            <h1>Keywords</h1>
+            <p>Track keyword visibility, estimated organic value, and paid search equivalent.</p>
+          </div>
+        </header>
+
+        <section class="tool-grid two-tools">
+          <article class="card">
+            <div class="card-heading">
+              <p class="eyebrow">Track</p>
+              <h2>Add keyword</h2>
+            </div>
+
+            <form method="POST" action="/keywords">
+              <label for="keyword">Keyword</label>
+              <input id="keyword" name="keyword" type="text" placeholder="pokemon cards uk" required />
+
+              <label for="targetUrl">Target URL</label>
+              <input id="targetUrl" name="targetUrl" type="url" placeholder="https://www.gamingnectar.com/collections/..." />
+
+              <label for="searchVolume">Search volume</label>
+              <input id="searchVolume" name="searchVolume" type="number" min="0" />
+
+              <label for="cpc">CPC / Google spend equivalent</label>
+              <input id="cpc" name="cpc" type="number" min="0" step="0.01" />
+
+              <button type="submit">Track keyword</button>
+            </form>
+          </article>
+
+          <article class="card card-accent">
+            <div class="card-heading">
+              <p class="eyebrow">Snapshot</p>
+              <h2>Update keyword values</h2>
+              <p>Run a keyword snapshot to update current estimated value. API-backed ranking can be added later with DataForSEO or SerpApi.</p>
+            </div>
+
+            <form method="POST" action="/keywords/snapshot">
+              <button type="submit">Run keyword snapshot</button>
+            </form>
+          </article>
+        </section>
+
+        <section class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Tracked values</p>
+            <h2>Keyword snapshots</h2>
+          </div>
+
+          <% if (keywordSnapshots && keywordSnapshots.length) { %>
+            <div class="data-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Keyword</th>
+                    <th>Rank</th>
+                    <th>Search volume</th>
+                    <th>CPC</th>
+                    <th>Estimated clicks</th>
+                    <th>Paid value</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% keywordSnapshots.forEach(function(row) { %>
+                    <tr>
+                      <td><strong><%= row.keyword %></strong><br><small><%= row.targetUrl || "" %></small></td>
+                      <td><%= row.rank || "—" %></td>
+                      <td><%= row.searchVolume || 0 %></td>
+                      <td>£<%= row.cpc || 0 %></td>
+                      <td><%= row.estimatedClicks || 0 %></td>
+                      <td>£<%= row.equivalentPaidValue || 0 %></td>
+                      <td><%= new Date(row.createdAt).toLocaleString("en-GB") %></td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } else { %>
+            <p>No keyword snapshots yet. Add a keyword above, then run a snapshot.</p>
+          <% } %>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
