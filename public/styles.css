@@ -666,3 +666,181 @@ textarea {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+/* Add this to the bottom of public/styles.css */
+.brand {
+  letter-spacing: -0.02em;
+}
+.secondary-link {
+  background: #e0e7ff;
+  color: #312e81;
+}
+.mission-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 88% 18%, rgba(129, 140, 248, 0.34), transparent 30%),
+    linear-gradient(135deg, #07111f 0%, #111827 42%, #312e81 100%);
+}
+.mission-hero::after {
+  content: "";
+  position: absolute;
+  right: -80px;
+  bottom: -120px;
+  width: 280px;
+  height: 280px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.score-orb {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 210px;
+  min-width: 210px;
+  height: 210px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05));
+  box-shadow: inset 0 0 34px rgba(255, 255, 255, 0.08), 0 22px 60px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+.score-orb span,
+.score-orb small {
+  color: #cbd5e1;
+  font-weight: 900;
+}
+.score-orb strong {
+  display: block;
+  color: #fff;
+  font-size: 72px;
+  line-height: 0.95;
+}
+.score-orb-strong {
+  box-shadow: inset 0 0 38px rgba(34, 197, 94, 0.28), 0 22px 60px rgba(0, 0, 0, 0.28);
+}
+.score-orb-needs-work {
+  box-shadow: inset 0 0 38px rgba(245, 158, 11, 0.3), 0 22px 60px rgba(0, 0, 0, 0.28);
+}
+.mission-strip .metric-card strong {
+  text-transform: capitalize;
+}
+.knowledge-card {
+  border-left: 6px solid var(--accent);
+}
+.mission-next {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #eef2ff;
+}
+.mission-explainer-grid {
+  align-items: stretch;
+}
+.signal-card {
+  border-top: 5px solid #94a3b8;
+}
+.signal-good {
+  border-top-color: var(--good);
+}
+.signal-bad {
+  border-top-color: var(--danger);
+}
+.signal-missing {
+  border-top-color: var(--warn);
+}
+.signal-list {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding-left: 18px;
+}
+.signal-list li {
+  line-height: 1.45;
+}
+.progress-list div {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding-bottom: 26px !important;
+}
+.progress-list b {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 12px;
+  max-width: calc(100% - 32px);
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #818cf8, #22c55e);
+}
+.competitor-row small,
+.mission-card small,
+.issue-card small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.mission-preview {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+.mission-card {
+  background: linear-gradient(180deg, #fff, #f8fafc);
+}
+.mission-card h3,
+.mission-card strong {
+  margin-top: 0;
+}
+.mission-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.mission-meta small {
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #312e81;
+  font-weight: 900;
+}
+.explanation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.explanation-grid > div {
+  padding: 13px;
+  border: 1px solid #dbe3f4;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+.explanation-grid p {
+  margin-bottom: 0;
+}
+.compact-explanation {
+  grid-template-columns: 1fr;
+}
+.mission-issue-card {
+  grid-template-columns: minmax(0, 1fr) 190px;
+}
+.mission-board .todo-card {
+  align-items: start;
+}
+@media (max-width: 880px) {
+  .score-orb {
+    width: 160px;
+    min-width: 160px;
+    height: 160px;
+    margin-top: 24px;
+  }
+  .score-orb strong {
+    font-size: 54px;
+  }
+  .mission-issue-card {
+    grid-template-columns: 1fr;
+  }
+}
