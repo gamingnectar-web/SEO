@@ -3,20 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title><%= title || "SEO Intelligence Dashboard" %></title>
+    <title><%= title || "SEO Mission Control" %></title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
-
   <body>
     <main class="app-shell">
       <aside class="side-nav">
-        <div class="brand">Site Quality Auditor</div>
+        <div class="brand">SEO Mission Control</div>
         <a class="active" href="/dashboard">Dashboard</a>
-        <a href="/todos">To-dos</a>
+        <a href="/todos">Missions</a>
         <a href="/keywords">Keywords</a>
         <a href="/audit">Audits</a>
-
         <form method="POST" action="/logout" class="side-logout">
           <button type="submit">Log out</button>
         </form>
@@ -31,81 +29,131 @@
           const categoryAverages = latestSummary.categoryAverages || {};
           const latestKeyword = keywordSnapshots && keywordSnapshots.length ? keywordSnapshots[0] : null;
           const latestCompetitor = competitorSnapshots && competitorSnapshots.length ? competitorSnapshots[0] : null;
+          const activeMissions = todos || [];
 
-          const scorePercent = function(scoreOutOfTen) {
-            return Math.round(Number(scoreOutOfTen || 0) * 10);
+          const scoreOutOfTen = function(category) {
+            const direct = categoryAverages[category];
+            if (direct !== undefined && direct !== null) return Number(direct || 0);
+            const map = {
+              seo: latestPoint?.seoScore,
+              geo: latestPoint?.geoScore,
+              technical: latestPoint?.technicalScore,
+              content: latestPoint?.contentScore,
+              linking: latestPoint?.linkingScore,
+              performance: latestPoint?.performanceScore,
+              conversion: latestPoint?.conversionScore,
+              trust: latestPoint?.trustScore
+            };
+            return map[category] ? Math.round(Number(map[category]) / 10) : 0;
           };
 
-          const safePercent = function(value) {
-            return Math.round(Number(value || 0));
+          const scorePercent = function(category) {
+            return Math.max(0, Math.min(100, Math.round(scoreOutOfTen(category) * 10)));
+          };
+
+          const movementValue = function(current, previous) {
+            if (current === undefined || current === null || previous === undefined || previous === null) return null;
+            return Number(current || 0) - Number(previous || 0);
           };
 
           const movement = function(current, previous) {
-            if (!current || !previous) return "—";
-            const diff = Number(current || 0) - Number(previous || 0);
+            const diff = movementValue(current, previous);
+            if (diff === null) return "—";
             if (diff > 0) return "+" + diff;
             return String(diff);
           };
+
+          const currentScore = latestPoint?.effectivenessScore || Math.round(Number(latestSummary.averageScore || 0) * 10) || 0;
+          const scoreMove = movementValue(latestPoint?.effectivenessScore, previousPoint?.effectivenessScore);
+          const scoreStatus = currentScore >= 80 ? "strong" : currentScore >= 60 ? "improving" : "needs work";
+          const weakestCategories = ["technical", "seo", "geo", "content", "linking", "conversion", "trust", "performance"]
+            .map((name) => ({ name, score: scoreOutOfTen(name) }))
+            .filter((item) => item.score > 0)
+            .sort((a, b) => a.score - b.score);
+          const strongestCategories = weakestCategories.slice().sort((a, b) => b.score - a.score);
+          const weakest = weakestCategories[0];
+          const strongest = strongestCategories[0];
+          const criticalMissions = activeMissions.filter((todo) => ["critical", "high"].includes(todo.priority || todo.severity)).length;
+
+          const goodSignals = [];
+          const badSignals = [];
+          const missingSignals = [];
+
+          if (strongest) goodSignals.push(`${strongest.name} is currently the strongest area at ${strongest.score}/10.`);
+          if (currentScore >= 70) goodSignals.push("The overall score is healthy enough to focus on growth, not just repairs.");
+          if ((trackedCompetitors?.length || 0) > 0) goodSignals.push("Competitors are connected, so future audits can explain where the site is ahead or behind.");
+          if ((trackedKeywords?.length || 0) > 0) goodSignals.push("Keywords are being monitored, which gives the dashboard commercial value context.");
+          if (!goodSignals.length) goodSignals.push("The first audit snapshot is ready; the app now has a baseline to improve from.");
+
+          if (weakest) badSignals.push(`${weakest.name} is the weakest area at ${weakest.score}/10 and should drive the next missions.`);
+          if ((latestSummary.issueCount ?? latestPoint?.issueCount ?? 0) > 0) badSignals.push(`${latestSummary.issueCount ?? latestPoint?.issueCount ?? 0} issues are still open in the latest audit data.`);
+          if (criticalMissions > 0) badSignals.push(`${criticalMissions} high-impact missions need attention before smaller optimisation work.`);
+          if (currentScore < 60) badSignals.push("The overall score is below the safe zone, so technical, content and commercial signals need tightening.");
+
+          if (!(trackedCompetitors && trackedCompetitors.length)) missingSignals.push("Static competitors are missing, so the app cannot fully explain who is beating you and why.");
+          if (!(trackedKeywords && trackedKeywords.length)) missingSignals.push("Tracked keywords are missing, so organic value and rank movement will be limited.");
+          if (scoreOutOfTen("geo") < 7) missingSignals.push("Answer-engine readiness needs clearer summaries, FAQ-style answers, entity clarity and schema signals.");
+          if (scoreOutOfTen("conversion") < 7 || scoreOutOfTen("trust") < 7) missingSignals.push("Commercial trust signals need more clarity around products, proof, delivery, reviews and buying confidence.");
+
+          const nextMove = activeMissions.length
+            ? `Complete the top ${Math.min(3, activeMissions.length)} high-impact missions to raise the score and close the biggest gaps.`
+            : "Run a fresh audit, then convert the highest-risk issues into missions.";
         %>
 
-        <header class="app-header">
+        <header class="hero mission-hero">
           <div>
-            <p class="eyebrow">Live intelligence</p>
-            <h1>SEO Intelligence Dashboard</h1>
-            <p>Track audits, technical health, content quality, competitors, keyword value and planned actions.</p>
+            <p class="eyebrow">Live SEO gameboard</p>
+            <h1>SEO Mission Control</h1>
+            <p>
+              See what is good, bad, missing and commercially important — then complete missions that move the score.
+            </p>
+            <div class="header-actions">
+              <form method="POST" action="/dashboard/run-scheduled-now">
+                <button type="submit">Run checks now</button>
+              </form>
+              <a class="button-link secondary-link" href="/audit">Run audit</a>
+            </div>
           </div>
-
-          <div class="header-actions">
-            <form method="POST" action="/dashboard/run-scheduled-now">
-              <button type="submit">Run checks now</button>
-            </form>
-            <a class="button-link secondary-link" href="/audit">Run audit</a>
+          <div class="score-orb score-orb-<%= scoreStatus.replace(" ", "-") %>">
+            <span>SEO score</span>
+            <strong><%= currentScore %></strong>
+            <small><%= movement(latestPoint?.effectivenessScore, previousPoint?.effectivenessScore) %> since last snapshot</small>
           </div>
         </header>
 
-        <section class="summary-strip">
+        <section class="summary-strip mission-strip">
           <article class="metric-card">
-            <span>Effectiveness</span>
-            <strong><%= latestPoint?.effectivenessScore || 0 %>/100</strong>
-            <small>Movement: <%= movement(latestPoint?.effectivenessScore, previousPoint?.effectivenessScore) %></small>
+            <span>Status</span>
+            <strong><%= scoreStatus %></strong>
+            <small><%= scoreMove > 0 ? "Improving" : scoreMove < 0 ? "Needs recovery" : "Stable or awaiting trend data" %></small>
           </article>
-
           <article class="metric-card">
-            <span>Errors / issues</span>
-            <strong><%= latestSummary.issueCount ?? latestPoint?.issueCount ?? 0 %></strong>
-            <small>Latest audited issue count</small>
-          </article>
-
-          <article class="metric-card">
-            <span>Technical</span>
-            <strong><%= categoryAverages.technical ?? (latestPoint?.technicalScore ? latestPoint.technicalScore / 10 : 0) %>/10</strong>
-            <small>Technical crawl quality</small>
-          </article>
-
-          <article class="metric-card">
-            <span>Content</span>
-            <strong><%= categoryAverages.content ?? (latestPoint?.contentScore ? latestPoint.contentScore / 10 : 0) %>/10</strong>
-            <small>Content and answer quality</small>
-          </article>
-
-          <article class="metric-card">
-            <span>Open to-dos</span>
+            <span>Open missions</span>
             <strong><%= todoSummary?.active || 0 %></strong>
             <small><%= todoSummary?.planned || 0 %> planned</small>
           </article>
-
+          <article class="metric-card">
+            <span>Issues</span>
+            <strong><%= latestSummary.issueCount ?? latestPoint?.issueCount ?? 0 %></strong>
+            <small>Latest audited issue count</small>
+          </article>
           <article class="metric-card">
             <span>Competitors</span>
             <strong><%= trackedCompetitors?.length || 0 %></strong>
-            <small>Static comparison set</small>
+            <small><%= trackedCompetitors?.length ? "Comparison set active" : "Add competitors" %></small>
+          </article>
+          <article class="metric-card">
+            <span>Keyword value</span>
+            <strong>£<%= latestKeyword?.equivalentPaidValue || latestKeyword?.dashboard?.equivalentPaidValue || 0 %></strong>
+            <small><%= trackedKeywords?.length || 0 %> tracked keywords</small>
           </article>
         </section>
 
         <section class="card knowledge-card insight-<%= insight?.status || "stable" %>">
-          <p class="eyebrow">What changed?</p>
+          <p class="eyebrow">What is going on?</p>
           <h2><%= insight?.title || "No movement insight yet" %></h2>
           <p><%= insight?.message || "Run an audit to create your first dashboard snapshot." %></p>
-
+          <p class="mission-next"><strong>Next move:</strong> <%= nextMove %></p>
           <% if (insight?.actions?.length) { %>
             <ul>
               <% insight.actions.forEach(function(action) { %>
@@ -115,16 +163,47 @@
           <% } %>
         </section>
 
+        <section class="tool-grid three-tools mission-explainer-grid">
+          <article class="card signal-card signal-good">
+            <p class="eyebrow">Good</p>
+            <h2>What is working</h2>
+            <ul class="signal-list">
+              <% goodSignals.slice(0, 4).forEach(function(item) { %>
+                <li><%= item %></li>
+              <% }) %>
+            </ul>
+          </article>
+
+          <article class="card signal-card signal-bad">
+            <p class="eyebrow">Bad</p>
+            <h2>What is holding you back</h2>
+            <ul class="signal-list">
+              <% badSignals.slice(0, 4).forEach(function(item) { %>
+                <li><%= item %></li>
+              <% }) %>
+            </ul>
+          </article>
+
+          <article class="card signal-card signal-missing">
+            <p class="eyebrow">Missing</p>
+            <h2>What the app still needs</h2>
+            <ul class="signal-list">
+              <% missingSignals.slice(0, 4).forEach(function(item) { %>
+                <li><%= item %></li>
+              <% }) %>
+            </ul>
+          </article>
+        </section>
+
         <section class="card">
           <div class="section-heading row-heading">
             <div>
-              <p class="eyebrow">Traceability</p>
+              <p class="eyebrow">Score movement</p>
               <h2>Effectiveness over time</h2>
-              <p>Each point is an audit snapshot. Manual, scheduled and competitor audits should all feed into this history.</p>
+              <p>Each point is an audit snapshot. This makes the app feel continuous instead of like isolated reports.</p>
             </div>
             <span class="status-pill"><%= timeline?.length || 0 %> snapshots</span>
           </div>
-
           <% if (timeline && timeline.length) { %>
             <canvas id="effectivenessChart" height="120"></canvas>
           <% } else { %>
@@ -136,30 +215,47 @@
           <article class="card">
             <p class="eyebrow">Organic health</p>
             <h2>Search / GEO / AEO</h2>
-            <div class="mini-score-list">
-              <div><span>SEO</span><strong><%= categoryAverages.seo ?? (latestPoint?.seoScore ? latestPoint.seoScore / 10 : 0) %>/10</strong></div>
-              <div><span>GEO</span><strong><%= categoryAverages.geo ?? (latestPoint?.geoScore ? latestPoint.geoScore / 10 : 0) %>/10</strong></div>
-              <div><span>AEO</span><strong><%= latestPoint?.aeoScore ? latestPoint.aeoScore / 10 : categoryAverages.geo || 0 %>/10</strong></div>
+            <div class="mini-score-list progress-list">
+              <% ["seo", "geo"].forEach(function(category) { %>
+                <div>
+                  <span><%= category.toUpperCase() %></span>
+                  <strong><%= scoreOutOfTen(category) %>/10</strong>
+                  <b style="width:<%= scorePercent(category) %>%"></b>
+                </div>
+              <% }) %>
+              <div>
+                <span>AEO</span>
+                <strong><%= latestPoint?.aeoScore ? latestPoint.aeoScore / 10 : categoryAverages.geo || 0 %>/10</strong>
+                <b style="width:<%= Math.round(Number(latestPoint?.aeoScore ? latestPoint.aeoScore : (categoryAverages.geo || 0) * 10)) %>%"></b>
+              </div>
             </div>
           </article>
 
           <article class="card">
             <p class="eyebrow">Technical stack</p>
             <h2>Technical / links</h2>
-            <div class="mini-score-list">
-              <div><span>Technical</span><strong><%= categoryAverages.technical ?? 0 %>/10</strong></div>
-              <div><span>Performance</span><strong><%= categoryAverages.performance ?? 0 %>/10</strong></div>
-              <div><span>Linking</span><strong><%= categoryAverages.linking ?? 0 %>/10</strong></div>
+            <div class="mini-score-list progress-list">
+              <% ["technical", "performance", "linking"].forEach(function(category) { %>
+                <div>
+                  <span><%= category %></span>
+                  <strong><%= scoreOutOfTen(category) %>/10</strong>
+                  <b style="width:<%= scorePercent(category) %>%"></b>
+                </div>
+              <% }) %>
             </div>
           </article>
 
           <article class="card">
             <p class="eyebrow">Commercial strength</p>
             <h2>Content / trust</h2>
-            <div class="mini-score-list">
-              <div><span>Content</span><strong><%= categoryAverages.content ?? 0 %>/10</strong></div>
-              <div><span>Conversion</span><strong><%= categoryAverages.conversion ?? 0 %>/10</strong></div>
-              <div><span>Trust</span><strong><%= categoryAverages.trust ?? 0 %>/10</strong></div>
+            <div class="mini-score-list progress-list">
+              <% ["content", "conversion", "trust"].forEach(function(category) { %>
+                <div>
+                  <span><%= category %></span>
+                  <strong><%= scoreOutOfTen(category) %>/10</strong>
+                  <b style="width:<%= scorePercent(category) %>%"></b>
+                </div>
+              <% }) %>
             </div>
           </article>
         </section>
@@ -169,7 +265,8 @@
             <div class="section-heading row-heading">
               <div>
                 <p class="eyebrow">Competition</p>
-                <h2>Competitor comparison</h2>
+                <h2>You vs competitors</h2>
+                <p>Use this to explain what competitors do better, not just to list their domains.</p>
               </div>
               <a href="/audit">Manage</a>
             </div>
@@ -177,14 +274,17 @@
             <% if (trackedCompetitors && trackedCompetitors.length) { %>
               <div class="competitor-list">
                 <% trackedCompetitors.slice(0, 6).forEach(function(competitor) { %>
-                  <article class="compact-row">
-                    <strong><%= competitor.domain %></strong>
-                    <span><%= competitor.urls?.length || 0 %> tracked URLs</span>
+                  <article class="compact-row competitor-row">
+                    <div>
+                      <strong><%= competitor.domain %></strong>
+                      <small><%= competitor.urls?.length || 0 %> tracked URLs</small>
+                    </div>
+                    <span>Tracked</span>
                   </article>
                 <% }) %>
               </div>
             <% } else { %>
-              <p>No static competitors yet. Add competitors so every keyword/audit can be compared against the same set.</p>
+              <p>No static competitors yet. Add competitors so every audit can explain who is ahead, who is behind and why.</p>
               <a class="button-link secondary-link" href="/audit">Add competitors</a>
             <% } %>
 
@@ -197,7 +297,8 @@
             <div class="section-heading row-heading">
               <div>
                 <p class="eyebrow">Keyword value</p>
-                <h2>Keyword monitoring</h2>
+                <h2>Organic value monitor</h2>
+                <p>Shows whether SEO work is protecting or creating equivalent paid media value.</p>
               </div>
               <a href="/keywords">Open</a>
             </div>
@@ -206,18 +307,18 @@
               <div class="competitor-list">
                 <% trackedKeywords.slice(0, 6).forEach(function(item) { const row = item.dashboard || {}; %>
                   <article class="compact-row">
-                    <strong><%= item.keyword %></strong>
-                    <span>Score <%= row.score || 0 %>/100 · £<%= row.equivalentPaidValue || 0 %></span>
+                    <div>
+                      <strong><%= item.keyword %></strong>
+                      <small>Score <%= row.score || 0 %>/100</small>
+                    </div>
+                    <span>£<%= row.equivalentPaidValue || 0 %></span>
                   </article>
                 <% }) %>
               </div>
+              <p class="muted">Confidence note: if live rank providers are not connected, values depend on manual or fallback rank data.</p>
             <% } else { %>
               <p>No keywords are being monitored yet. Add keywords to estimate organic value versus paid spend.</p>
               <a class="button-link secondary-link" href="/keywords">Add keywords</a>
-            <% } %>
-
-            <% if (latestKeyword) { %>
-              <p class="muted">Latest keyword snapshot: <%= latestKeyword.keyword %></p>
             <% } %>
           </article>
         </section>
@@ -226,24 +327,32 @@
           <div class="section-heading row-heading">
             <div>
               <p class="eyebrow">Priority work</p>
-              <h2>To-do preview</h2>
+              <h2>Mission preview</h2>
+              <p>Every mission should explain the issue, why it matters, expected impact and the next action.</p>
             </div>
             <a href="/todos">View all</a>
           </div>
 
-          <% if (todos && todos.length) { %>
-            <div class="todo-preview">
-              <% todos.forEach(function(todo) { %>
-                <article class="mini-todo priority-<%= todo.priority || "medium" %>">
+          <% if (activeMissions.length) { %>
+            <div class="todo-preview mission-preview">
+              <% activeMissions.forEach(function(todo) { %>
+                <article class="mini-todo mission-card priority-<%= todo.priority || todo.severity || "medium" %>">
                   <span><%= todo.status %></span>
-                  <strong><%= todo.checkName || todo.category || "SEO task" %></strong>
+                  <strong><%= todo.checkName || todo.category || "SEO mission" %></strong>
                   <p><%= todo.recommendation || todo.message %></p>
+                  <% if (todo.expectedImpact || todo.businessImpact || todo.effort) { %>
+                    <div class="mission-meta">
+                      <% if (todo.expectedImpact) { %><small>Impact: <%= todo.expectedImpact %></small><% } %>
+                      <% if (todo.effort) { %><small>Effort: <%= todo.effort %></small><% } %>
+                      <% if (todo.businessImpact) { %><small><%= todo.businessImpact %></small><% } %>
+                    </div>
+                  <% } %>
                   <small><%= todo.pageUrl || "" %></small>
                 </article>
               <% }) %>
             </div>
           <% } else { %>
-            <p>No active to-dos yet. Add tasks from audit issues or create them manually from the to-do area.</p>
+            <p>No active missions yet. Run an audit and convert the most important issues into missions.</p>
           <% } %>
         </section>
 
@@ -253,7 +362,6 @@
               <p class="eyebrow">History</p>
               <h2>Recent audit runs</h2>
             </div>
-
             <div class="recent-run-list">
               <% recentRuns.forEach(function(run) { %>
                 <a class="recent-run-card" href="/audit/<%= run._id %>">
