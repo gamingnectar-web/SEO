@@ -6,16 +6,14 @@
     <title><%= title || "Audit Results" %></title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
-
   <body>
     <main class="app-shell">
       <aside class="side-nav">
-        <div class="brand">Site Quality Auditor</div>
+        <div class="brand">SEO Mission Control</div>
         <a href="/dashboard">Dashboard</a>
-        <a href="/todos">To-dos</a>
+        <a href="/todos">Missions</a>
         <a href="/keywords">Keywords</a>
         <a class="active" href="/audit">Audits</a>
-
         <form method="POST" action="/logout" class="side-logout">
           <button type="submit">Log out</button>
         </form>
@@ -33,15 +31,6 @@
               ? Math.round((safeResults.reduce((sum, page) => sum + Number(page.overallScore || 0), 0) / safeResults.length) * 10) / 10
               : 0
           );
-
-          const formatDate = function(value) {
-            if (!value) return "—";
-            try {
-              return new Date(value).toLocaleString("en-GB");
-            } catch {
-              return "—";
-            }
-          };
 
           const scoreClass = function(score) {
             const number = Number(score || 0);
@@ -64,6 +53,20 @@
 
           const getIssueCategory = function(issue) {
             return issue.category || issue.type || "general";
+          };
+
+          const issueText = function(issue) {
+            return [
+              issue.title,
+              issue.checkName,
+              issue.name,
+              issue.message,
+              issue.description,
+              issue.recommendation,
+              issue.why,
+              issue.how,
+              issue.example
+            ].filter(Boolean).join(" ").toLowerCase();
           };
 
           const allIssues = safeResults.flatMap(function(page) {
@@ -103,12 +106,61 @@
             "trust",
             "merchandising"
           ];
+
+          const categoryRows = categories
+            .map((category) => ({ category, score: categoryAverages[category] }))
+            .filter((row) => row.score !== undefined && row.score !== null)
+            .sort((a, b) => Number(a.score || 0) - Number(b.score || 0));
+          const weakestCategory = categoryRows[0];
+          const strongestCategory = categoryRows.slice().sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0];
+
+          const issueIncludes = function(words) {
+            return allIssues.some(function(issue) {
+              const text = issueText(issue);
+              return words.some((word) => text.includes(word));
+            });
+          };
+
+          const goodSignals = [];
+          const badSignals = [];
+          const missingSignals = [];
+
+          if (strongestCategory) goodSignals.push(`${strongestCategory.category} is the strongest area at ${strongestCategory.score}/10.`);
+          if (averageScore >= 7) goodSignals.push("The site has a workable baseline, so improvements can focus on growth and competitor gaps.");
+          if (pageCount > 1) goodSignals.push(`${pageCount} pages were audited, giving a broader view than a single-page report.`);
+          if (!goodSignals.length) goodSignals.push("The audit has created a baseline; future scans will show whether the site is moving up or down.");
+
+          if (weakestCategory) badSignals.push(`${weakestCategory.category} is the weakest category at ${weakestCategory.score}/10.`);
+          if (issueCount > 0) badSignals.push(`${issueCount} issues were found and should be turned into prioritised missions.`);
+          if (priorityIssues.length) badSignals.push(`${priorityIssues.length} priority issues need review before low-impact clean-up tasks.`);
+          if (averageScore < 6) badSignals.push("The average score is below the safe zone, so technical, content and commercial fixes should come first.");
+
+          if (!issueIncludes(["schema", "structured data", "json-ld"])) missingSignals.push("Structured data signals may be missing or not clearly detected; check Product, FAQ and organisation schema.");
+          if (!issueIncludes(["faq", "answer", "question"])) missingSignals.push("Answer-ready FAQ content may be missing, which weakens GEO/AEO readiness.");
+          if (!issueIncludes(["review", "trust", "delivery", "returns", "stock", "availability"])) missingSignals.push("Commercial trust signals may be thin; check reviews, delivery, returns, availability and proof points.");
+          if (!trackedCompetitors?.length && !competitorAnalysis) missingSignals.push("Competitor context is missing, so the report cannot fully explain whether the site is ahead or behind the market.");
+
+          const categoryMatches = function(names) {
+            return allIssues.filter((issue) => names.includes(getIssueCategory(issue)) || names.some((name) => issueText(issue).includes(name)));
+          };
+
+          const sections = [
+            { id: "geo-aeo", eyebrow: "GEO / AEO", title: "Generative and answer-engine analysis", categories: ["geo", "aeo", "schema", "answer", "faq"], fallback: "Improve entity clarity, structured data, answer blocks and topical coverage." },
+            { id: "seo", eyebrow: "SEO", title: "Search optimisation issues", categories: ["seo", "metadata", "indexing", "canonical", "title", "description"], fallback: "Improve metadata, crawlability, canonical signals and content targeting." },
+            { id: "technical", eyebrow: "Technical", title: "Technical health", categories: ["technical", "performance", "accessibility", "crawl", "status"], fallback: "Improve page speed, crawlability, accessibility and technical consistency." },
+            { id: "linking", eyebrow: "Linking", title: "Internal-link and link-count analysis", categories: ["linking", "links", "internal links", "anchor"], fallback: "Reduce link noise and prioritise commercially useful internal links." },
+            { id: "content", eyebrow: "Content", title: "Content quality", categories: ["content", "copy", "headings", "thin", "word count"], fallback: "Add useful, specific and commercially relevant content." },
+            { id: "commercial", eyebrow: "Commercial", title: "Commercial and merchandising signals", categories: ["commercial", "conversion", "trust", "merchandising", "product", "stock", "review"], fallback: "Improve buyability, stock signals, trust, product clarity and user intent satisfaction." }
+          ];
+
+          const competitorRows = competitorAnalysis?.competitors || competitorAnalysis?.results || [];
+          const primaryCompetitorScore = competitorAnalysis?.primary?.overallScore || averageScore;
         %>
 
-        <header class="app-header">
+        <header class="hero mission-hero">
           <div>
-            <p class="eyebrow">Gaming Nectar Intelligence</p>
-            <h1><%= auditRun?.type === "site" ? "Full Site Dashboard" : "Audit Results" %></h1>
+            <p class="eyebrow">Audit intelligence</p>
+            <h1><%= auditRun?.type === "site" ? "Full Site Mission Report" : "Audit Mission Report" %></h1>
             <p>
               <% if (auditRun?._id) { %>
                 Saved audit · Run ID: <strong><%= auditRun._id %></strong>
@@ -116,38 +168,30 @@
                 Live audit report
               <% } %>
             </p>
+            <div class="header-actions">
+              <a class="button-link secondary-link" href="/audit">Run another audit</a>
+              <a class="button-link" href="/dashboard">Dashboard</a>
+            </div>
           </div>
-
-          <div class="header-actions">
-            <a class="button-link secondary-link" href="/audit">Run another audit</a>
-            <a class="button-link" href="/dashboard">Dashboard</a>
+          <div class="score-orb">
+            <span>Average score</span>
+            <strong><%= Math.round(Number(averageScore || 0) * 10) %></strong>
+            <small><%= averageScore %>/10 audit average</small>
           </div>
         </header>
 
-        <section class="summary-strip">
-          <article class="metric-card">
-            <span>Average score</span>
-            <strong><%= averageScore %>/10</strong>
-          </article>
-
-          <article class="metric-card">
-            <span>Pages audited</span>
-            <strong><%= pageCount %></strong>
-          </article>
-
-          <article class="metric-card">
-            <span>Total issues</span>
-            <strong><%= issueCount %></strong>
-          </article>
-
-          <article class="metric-card">
-            <span>To-dos</span>
-            <strong><%= todoSummary?.total || 0 %></strong>
-          </article>
+        <section class="summary-strip mission-strip">
+          <article class="metric-card"><span>Pages audited</span><strong><%= pageCount %></strong><small>URLs checked</small></article>
+          <article class="metric-card"><span>Total issues</span><strong><%= issueCount %></strong><small>Across this run</small></article>
+          <article class="metric-card"><span>Missions</span><strong><%= todoSummary?.total || 0 %></strong><small>Created from audit issues</small></article>
+          <article class="metric-card"><span>Weakest area</span><strong><%= weakestCategory?.category || "—" %></strong><small><%= weakestCategory?.score !== undefined ? weakestCategory.score + "/10" : "Needs audit data" %></small></article>
         </section>
 
         <nav class="audit-tabs">
           <a href="#overview">Overview</a>
+          <a href="#explainer">Good / Bad / Missing</a>
+          <a href="#priority">Priority missions</a>
+          <% if (competitorRows.length) { %><a href="#competitors">Competitors</a><% } %>
           <a href="#geo-aeo">GEO / AEO</a>
           <a href="#seo">SEO</a>
           <a href="#technical">Technical</a>
@@ -155,16 +199,21 @@
           <a href="#content">Content</a>
           <a href="#commercial">Commercial</a>
           <a href="#pages">Pages</a>
-          <a href="#todos">To-dos</a>
+          <a href="#todos">Missions</a>
         </nav>
 
         <section id="overview" class="card">
           <div class="section-heading">
             <p class="eyebrow">Dashboard</p>
             <h2>Overall performance</h2>
-            <p>Category averages are calculated from every audited URL in this run.</p>
+            <p>
+              <% if (weakestCategory) { %>
+                Your strongest area is <strong><%= strongestCategory.category %></strong>. The biggest weakness is <strong><%= weakestCategory.category %></strong>.
+              <% } else { %>
+                Category averages will appear after a richer audit snapshot is available.
+              <% } %>
+            </p>
           </div>
-
           <div class="category-score-grid">
             <% categories.forEach(function(category) { %>
               <article class="category-score-card">
@@ -177,12 +226,36 @@
           </div>
         </section>
 
+        <section id="explainer" class="tool-grid three-tools mission-explainer-grid">
+          <article class="card signal-card signal-good">
+            <p class="eyebrow">Good</p>
+            <h2>What is working</h2>
+            <ul class="signal-list">
+              <% goodSignals.forEach(function(item) { %><li><%= item %></li><% }) %>
+            </ul>
+          </article>
+          <article class="card signal-card signal-bad">
+            <p class="eyebrow">Bad</p>
+            <h2>What needs attention</h2>
+            <ul class="signal-list">
+              <% badSignals.forEach(function(item) { %><li><%= item %></li><% }) %>
+            </ul>
+          </article>
+          <article class="card signal-card signal-missing">
+            <p class="eyebrow">Missing</p>
+            <h2>What to check next</h2>
+            <ul class="signal-list">
+              <% missingSignals.forEach(function(item) { %><li><%= item %></li><% }) %>
+            </ul>
+          </article>
+        </section>
+
         <section class="card">
           <div class="section-heading">
             <p class="eyebrow">Focus areas</p>
             <h2>Weakest pages</h2>
+            <p>These pages are the best candidates for immediate missions because they have the lowest current scores.</p>
           </div>
-
           <% if (weakestPages.length) { %>
             <div class="page-card-list">
               <% weakestPages.forEach(function(page) { %>
@@ -201,25 +274,36 @@
           <% } %>
         </section>
 
-        <section class="card">
+        <section id="priority" class="card">
           <div class="section-heading">
-            <p class="eyebrow">Priority</p>
-            <h2>Priority issues</h2>
+            <p class="eyebrow">Priority missions</p>
+            <h2>Highest-impact issues</h2>
+            <p>Each issue explains what is wrong, why it matters and lets you add it to the mission board.</p>
           </div>
 
           <% if (priorityIssues.length) { %>
             <div class="issue-list">
-              <% priorityIssues.forEach(function(issue, index) { %>
-                <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
+              <% priorityIssues.forEach(function(issue) { %>
+                <article class="issue-card mission-issue-card severity-<%= getIssueSeverity(issue) %>">
                   <div>
                     <span><%= getIssueSeverity(issue) %> · <%= getIssueCategory(issue) %></span>
-                    <h3><%= issue.title || issue.checkName || issue.name || "Issue" %></h3>
+                    <h3><%= issue.title || issue.checkName || issue.name || "SEO mission" %></h3>
                     <p><%= issue.message || issue.description || issue.recommendation || "No issue detail was provided." %></p>
 
-                    <% if (issue.recommendation) { %>
-                      <strong>Recommendation</strong>
-                      <p><%= issue.recommendation %></p>
-                    <% } %>
+                    <div class="explanation-grid">
+                      <div>
+                        <strong>Why it matters</strong>
+                        <p><%= issue.why || issue.businessImpact || "This affects how clearly search engines, AI systems or customers can understand the page." %></p>
+                      </div>
+                      <div>
+                        <strong>How to fix</strong>
+                        <p><%= issue.how || issue.implementationHint || issue.recommendation || "Improve the page signal and rerun the audit to confirm the score moves." %></p>
+                      </div>
+                      <div>
+                        <strong>Expected result</strong>
+                        <p><%= issue.expectedImpact || "Better visibility, clearer page understanding and a stronger commercial signal." %></p>
+                      </div>
+                    </div>
 
                     <a href="<%= issue.pageUrl %>" target="_blank" rel="noopener noreferrer"><%= issue.pageTitle || issue.pageUrl %></a>
                   </div>
@@ -229,13 +313,19 @@
                     <input type="hidden" name="pageUrl" value="<%= issue.pageUrl || "" %>" />
                     <input type="hidden" name="pageTitle" value="<%= issue.pageTitle || "" %>" />
                     <input type="hidden" name="category" value="<%= getIssueCategory(issue) %>" />
-                    <input type="hidden" name="checkName" value="<%= issue.title || issue.checkName || issue.name || "Audit issue" %>" />
+                    <input type="hidden" name="checkName" value="<%= issue.title || issue.checkName || issue.name || "Audit mission" %>" />
                     <input type="hidden" name="severity" value="<%= getIssueSeverity(issue) %>" />
+                    <input type="hidden" name="priority" value="<%= getIssueSeverity(issue) %>" />
                     <input type="hidden" name="message" value="<%= issue.message || issue.description || "" %>" />
                     <input type="hidden" name="recommendation" value="<%= issue.recommendation || issue.message || "" %>" />
+                    <input type="hidden" name="why" value="<%= issue.why || issue.businessImpact || "" %>" />
+                    <input type="hidden" name="how" value="<%= issue.how || issue.implementationHint || "" %>" />
+                    <input type="hidden" name="businessImpact" value="<%= issue.businessImpact || "" %>" />
+                    <input type="hidden" name="expectedImpact" value="<%= issue.expectedImpact || "" %>" />
+                    <input type="hidden" name="effort" value="<%= issue.effort || "" %>" />
                     <input type="hidden" name="source" value="audit" />
                     <input type="hidden" name="returnTo" value="/audit/<%= auditRun?._id || "" %>" />
-                    <button type="submit">Add to-do</button>
+                    <button type="submit">Add mission</button>
                   </form>
                 </article>
               <% }) %>
@@ -245,114 +335,55 @@
           <% } %>
         </section>
 
-        <section id="geo-aeo" class="card">
-          <div class="section-heading">
-            <p class="eyebrow">GEO / AEO</p>
-            <h2>Generative and answer-engine analysis</h2>
-          </div>
+        <% if (competitorRows.length) { %>
+          <section id="competitors" class="card">
+            <div class="section-heading">
+              <p class="eyebrow">Competition</p>
+              <h2>You vs competitors</h2>
+              <p>Use this as a gap explanation layer: where they are stronger, where you are stronger, and what mission closes the gap.</p>
+            </div>
+            <div class="competitor-list">
+              <% competitorRows.slice(0, 6).forEach(function(row) { const rowScore = row.overallScore || row.summary?.averageScore || 0; const diff = Math.round((Number(primaryCompetitorScore || 0) - Number(rowScore || 0)) * 10) / 10; %>
+                <article class="compact-row competitor-row">
+                  <div>
+                    <strong><%= row.domain || row.url || row.finalUrl || "Competitor" %></strong>
+                    <small><%= diff >= 0 ? "You are ahead by " + diff : "You are behind by " + Math.abs(diff) %> points</small>
+                  </div>
+                  <span><%= rowScore %>/10</span>
+                </article>
+              <% }) %>
+            </div>
+          </section>
+        <% } %>
 
-          <div class="issue-list compact">
-            <% allIssues.filter(issue => ["geo", "aeo", "schema", "answer"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
-              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
-                <span><%= issue.pageTitle %></span>
-                <h3><%= issue.title || issue.checkName || "GEO / AEO issue" %></h3>
-                <p><%= issue.recommendation || issue.message || "Improve entity clarity, structured data, answer blocks and topical coverage." %></p>
-              </article>
-            <% }) %>
-          </div>
-        </section>
-
-        <section id="seo" class="card">
-          <div class="section-heading">
-            <p class="eyebrow">SEO</p>
-            <h2>Search optimisation issues</h2>
-          </div>
-
-          <div class="issue-list compact">
-            <% allIssues.filter(issue => ["seo", "metadata", "indexing", "canonical"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
-              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
-                <span><%= issue.pageTitle %></span>
-                <h3><%= issue.title || issue.checkName || "SEO issue" %></h3>
-                <p><%= issue.recommendation || issue.message || "Improve metadata, crawlability, canonical signals and content targeting." %></p>
-              </article>
-            <% }) %>
-          </div>
-        </section>
-
-        <section id="technical" class="card">
-          <div class="section-heading">
-            <p class="eyebrow">Technical</p>
-            <h2>Technical health</h2>
-          </div>
-
-          <div class="issue-list compact">
-            <% allIssues.filter(issue => ["technical", "performance", "accessibility"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
-              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
-                <span><%= issue.pageTitle %></span>
-                <h3><%= issue.title || issue.checkName || "Technical issue" %></h3>
-                <p><%= issue.recommendation || issue.message || "Improve page speed, crawlability, accessibility and technical consistency." %></p>
-              </article>
-            <% }) %>
-          </div>
-        </section>
-
-        <section id="linking" class="card">
-          <div class="section-heading">
-            <p class="eyebrow">Linking</p>
-            <h2>Internal-link and link-count analysis</h2>
-          </div>
-
-          <div class="issue-list compact">
-            <% allIssues.filter(issue => ["linking", "links", "internal links"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
-              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
-                <span><%= issue.pageTitle %></span>
-                <h3><%= issue.title || issue.checkName || "Linking issue" %></h3>
-                <p><%= issue.recommendation || issue.message || "Reduce link noise and prioritise commercially useful internal links." %></p>
-              </article>
-            <% }) %>
-          </div>
-        </section>
-
-        <section id="content" class="card">
-          <div class="section-heading">
-            <p class="eyebrow">Content</p>
-            <h2>Content quality</h2>
-          </div>
-
-          <div class="issue-list compact">
-            <% allIssues.filter(issue => ["content", "copy", "headings"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
-              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
-                <span><%= issue.pageTitle %></span>
-                <h3><%= issue.title || issue.checkName || "Content issue" %></h3>
-                <p><%= issue.recommendation || issue.message || "Add useful, specific and commercially relevant content." %></p>
-              </article>
-            <% }) %>
-          </div>
-        </section>
-
-        <section id="commercial" class="card">
-          <div class="section-heading">
-            <p class="eyebrow">Commercial</p>
-            <h2>Commercial and merchandising signals</h2>
-          </div>
-
-          <div class="issue-list compact">
-            <% allIssues.filter(issue => ["commercial", "conversion", "trust", "merchandising"].includes(getIssueCategory(issue))).forEach(function(issue) { %>
-              <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
-                <span><%= issue.pageTitle %></span>
-                <h3><%= issue.title || issue.checkName || "Commercial issue" %></h3>
-                <p><%= issue.recommendation || issue.message || "Improve buyability, stock signals, trust, product clarity and user intent satisfaction." %></p>
-              </article>
-            <% }) %>
-          </div>
-        </section>
+        <% sections.forEach(function(section) { const sectionIssues = categoryMatches(section.categories); %>
+          <section id="<%= section.id %>" class="card">
+            <div class="section-heading">
+              <p class="eyebrow"><%= section.eyebrow %></p>
+              <h2><%= section.title %></h2>
+            </div>
+            <% if (sectionIssues.length) { %>
+              <div class="issue-list compact">
+                <% sectionIssues.forEach(function(issue) { %>
+                  <article class="issue-card severity-<%= getIssueSeverity(issue) %>">
+                    <span><%= issue.pageTitle %></span>
+                    <h3><%= issue.title || issue.checkName || section.eyebrow + " issue" %></h3>
+                    <p><%= issue.recommendation || issue.message || section.fallback %></p>
+                    <% if (issue.why || issue.businessImpact) { %><small><strong>Why:</strong> <%= issue.why || issue.businessImpact %></small><% } %>
+                  </article>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <p class="muted">No specific <%= section.eyebrow %> issues were detected in this run. Keep this area monitored in future audits.</p>
+            <% } %>
+          </section>
+        <% }) %>
 
         <section id="pages" class="card">
           <div class="section-heading">
             <p class="eyebrow">Pages</p>
             <h2>All audited pages</h2>
           </div>
-
           <% if (safeResults.length) { %>
             <div class="data-table-wrap">
               <table class="data-table">
@@ -372,11 +403,10 @@
                   <% safeResults.forEach(function(page) { %>
                     <tr>
                       <td>
-                        <strong><%= getPageTitle(page) %></strong>
-                        <br />
+                        <strong><%= getPageTitle(page) %></strong><br />
                         <a href="<%= getPageUrl(page) %>" target="_blank" rel="noopener noreferrer"><%= getPageUrl(page) %></a>
                       </td>
-                      <td><strong><%= page.overallScore || 0 %>/10</strong></td>
+                      <td><strong class="<%= scoreClass(page.overallScore) %>"><%= page.overallScore || 0 %>/10</strong></td>
                       <td><%= Array.isArray(page.issues) ? page.issues.length : 0 %></td>
                       <td><%= page.categoryScores?.technical ?? "—" %></td>
                       <td><%= page.categoryScores?.seo ?? "—" %></td>
@@ -396,40 +426,37 @@
         <section id="todos" class="card">
           <div class="section-heading">
             <p class="eyebrow">Action plan</p>
-            <h2>To-dos from this audit</h2>
+            <h2>Missions from this audit</h2>
           </div>
-
           <% if (todos && todos.length) { %>
             <div class="todo-board">
               <% todos.forEach(function(todo) { %>
-                <article class="todo-card priority-<%= todo.priority || "medium" %>">
+                <article class="todo-card mission-card priority-<%= todo.priority || "medium" %>">
                   <div>
                     <span class="status-pill"><%= todo.status %></span>
-                    <h3><%= todo.checkName || todo.category || "SEO task" %></h3>
+                    <h3><%= todo.checkName || todo.category || "SEO mission" %></h3>
                     <p><%= todo.recommendation || todo.message %></p>
+                    <% if (todo.why || todo.businessImpact) { %><p><strong>Why:</strong> <%= todo.why || todo.businessImpact %></p><% } %>
+                    <% if (todo.expectedImpact || todo.effort) { %><p><strong>Expected:</strong> <%= todo.expectedImpact || "Score and visibility improvement" %> <%= todo.effort ? "· Effort: " + todo.effort : "" %></p><% } %>
                     <small><%= todo.pageUrl %></small>
                   </div>
-
                   <form method="POST" action="/todos/<%= todo._id %>/status">
                     <input type="hidden" name="returnTo" value="/audit/<%= auditRun?._id || "" %>" />
-
                     <label>Status</label>
                     <select name="status">
                       <% ["new", "planned", "in_progress", "blocked", "done", "ignored"].forEach(function(status) { %>
                         <option value="<%= status %>" <%= todo.status === status ? "selected" : "" %>><%= status %></option>
                       <% }) %>
                     </select>
-
                     <label>Due date</label>
                     <input type="date" name="dueDate" value="<%= todo.dueDate ? new Date(todo.dueDate).toISOString().slice(0, 10) : "" %>" />
-
-                    <button type="submit">Update</button>
+                    <button type="submit">Update mission</button>
                   </form>
                 </article>
               <% }) %>
             </div>
           <% } else { %>
-            <p>No to-dos have been added from this audit yet. Use the “Add to-do” buttons in Priority issues.</p>
+            <p>No missions have been added from this audit yet. Use the “Add mission” buttons in Priority missions.</p>
           <% } %>
         </section>
       </section>
